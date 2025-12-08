@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -69,6 +70,7 @@ const getIncludedCollection = (projectId: string) => collection(getProjectDocRef
 const getQualityAssessmentsCollection = (projectId: string) =>
   collection(getProjectDocRef(projectId), 'quality_assessments')
 const getPrismaDocRef = (projectId: string) => doc(collection(getProjectDocRef(projectId), 'prisma'), 'stats')
+const getPrismaCollection = (projectId: string) => collection(getProjectDocRef(projectId), 'prisma')
 
 export const listenToProject = (projectId: string, callback: (project: Project | null) => void): Unsubscribe => {
   const projectRef = getProjectDocRef(projectId)
@@ -182,6 +184,26 @@ export const listenToPrismaData = (projectId: string, callback: (data: PrismaDat
     }
     callback({ ...createPrismaData(), ...(snapshot.data() as PrismaData) })
   })
+}
+
+const deleteCollectionDocs = async (collectionRef: ReturnType<typeof collection>) => {
+  const snapshot = await getDocs(collectionRef)
+  if (!snapshot.empty) {
+    await Promise.all(snapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref)))
+  }
+}
+
+export const deleteProject = async (projectId: string) => {
+  const projectRef = getProjectDocRef(projectId)
+
+  await Promise.all([
+    deleteCollectionDocs(getCandidatesCollection(projectId)),
+    deleteCollectionDocs(getIncludedCollection(projectId)),
+    deleteCollectionDocs(getQualityAssessmentsCollection(projectId)),
+    deleteCollectionDocs(getPrismaCollection(projectId)),
+  ])
+
+  await deleteDoc(projectRef)
 }
 
 export const updatePrismaData = async (projectId: string, data: Partial<PrismaData>) => {

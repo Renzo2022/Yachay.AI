@@ -7,9 +7,10 @@ import { phaseMetadata } from '../phaseMetadata.ts'
 
 type ProjectCardProps = {
   project: Project
+  onDelete?: (project: Project) => void
 }
 
-export const ProjectCard = ({ project }: ProjectCardProps) => {
+export const ProjectCard = ({ project, onDelete }: ProjectCardProps) => {
   const navigate = useNavigate()
 
   const progress = useMemo(() => {
@@ -35,14 +36,27 @@ export const ProjectCard = ({ project }: ProjectCardProps) => {
         'hover:-translate-y-1 hover:-translate-x-1',
       )}
     >
-      <div className="space-y-1">
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent-secondary">
-          Actualizado: {formattedDate}
-        </p>
-        <h3 className="text-2xl font-black uppercase text-main">{project.name}</h3>
-        <p className="text-sm font-mono text-neutral-600">
-          En curso: <span className="font-black" style={{ color: phaseInfo.accent }}>{phaseInfo.label}</span>
-        </p>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-mono uppercase tracking-[0.2em] text-black">
+              Actualizado: {formattedDate}
+            </p>
+            <h3 className="text-2xl font-black uppercase text-main">{project.name}</h3>
+            <p className="text-sm font-mono text-neutral-600">
+              En curso: <span className="font-black" style={{ color: phaseInfo.accent }}>{phaseInfo.label}</span>
+            </p>
+          </div>
+
+          <BrutalButton
+            variant="danger"
+            size="sm"
+            className="min-w-[120px]"
+            onClick={() => onDelete?.(project)}
+          >
+            ✖ Eliminar
+          </BrutalButton>
+        </div>
       </div>
 
       <div>

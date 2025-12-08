@@ -1,4 +1,3 @@
-import Groq from 'groq-sdk'
 import type { Phase1Data } from '../features/phase1_planning/types.ts'
 import type { Candidate } from '../features/projects/types.ts'
 import type { ExtractionPayload } from '../features/phase5_extraction/types.ts'
@@ -7,6 +6,32 @@ import type { SynthesisStats } from '../features/phase6_synthesis/analytics.ts'
 import type { AggregatedProjectData } from './project-aggregator.service.ts'
 import type { Manuscript } from '../features/phase7_report/types.ts'
 import { createEmptyManuscript } from '../features/phase7_report/types.ts'
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const PROXY_BASE_URL = import.meta.env.VITE_PROXY_BASE_URL?.replace(/\/$/, '') ?? ''
+const hasProxy = Boolean(PROXY_BASE_URL)
+
+const proxyPost = async <T>(path: string, body: unknown): Promise<T> => {
+  if (!hasProxy) {
+    throw new Error('Proxy base URL is not configured')
+  }
+
+  const response = await fetch(`${PROXY_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Proxy request failed (${response.status}): ${text}`)
+  }
+
+  return (await response.json()) as T
+}
 
 export type GeneratedProtocolPayload = {
   topic: string
@@ -72,44 +97,59 @@ const PROTOCOL_RESPONSE: GeneratedProtocolPayload['protocol'] = {
   exclusionCriteria: ['Estudios sin datos cuantitativos', 'Artículos de opinión sin metodología'],
 }
 
-export const generateProtocolFromTemplate = async (topic: string): Promise<GeneratedProtocolPayload> => {
-  const hasApiKey = Boolean(import.meta.env.VITE_GROQ_API_KEY)
+const mapProtocolToPhase1 = (topic: string, payload: GeneratedProtocolPayload): Phase1Data => {
+  const pico = payload.protocol.pico ?? PICO_TEMPLATE
+  const inclusion =
+    payload.protocol.inclusionCriteria?.length ? payload.protocol.inclusionCriteria : PROTOCOL_RESPONSE.inclusionCriteria
+  const exclusion =
+    payload.protocol.exclusionCriteria?.length ? payload.protocol.exclusionCriteria : PROTOCOL_RESPONSE.exclusionCriteria
 
-  if (!hasApiKey) {
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+  return {
+    mainQuestion: payload.protocol.mainQuestion || `¿Cómo impacta ${topic} en los resultados de aprendizaje y retención?`,
+    subquestions: [
+      `¿De qué manera ${pico.intervention} modifica los resultados (${pico.outcome}) respecto a ${pico.comparison}?`,
+      `¿Qué características definen a la población objetivo (${pico.population}) en los estudios analizados?`,
+    ],
+    objectives: `Documentar sistemáticamente la evidencia publicada sobre ${topic}, alineada a PRISMA y criterios PICO.`,
+    pico: {
+      population: pico.population || PICO_TEMPLATE.population,
+      intervention: pico.intervention || `${topic} potenciadas con IA`,
+      comparison: pico.comparison || PICO_TEMPLATE.comparison,
+      outcome: pico.outcome || PICO_TEMPLATE.outcome,
+    },
+    inclusionCriteria: inclusion,
+    exclusionCriteria: exclusion,
+  }
+}
+
+export const generateProtocolFromTemplate = async (topic: string): Promise<GeneratedProtocolPayload> => {
+  const sanitizedTopic = topic.trim() || 'Revisión sistemática en educación STEM'
+
+  if (!hasProxy) {
+    await delay(1200)
     return {
-      topic,
+      topic: sanitizedTopic,
       protocol: PROTOCOL_RESPONSE,
       generatedAt: Date.now(),
     }
   }
 
-  // TODO: Implement real Groq call using groq-sdk when API key is available.
-  return {
-    topic,
-    protocol: PROTOCOL_RESPONSE,
-    generatedAt: Date.now(),
+  try {
+    return await proxyPost<GeneratedProtocolPayload>('/groq/protocol', { topic: sanitizedTopic })
+  } catch (error) {
+    console.error('generateProtocolFromTemplate error', error)
+    return {
+      topic: sanitizedTopic,
+      protocol: PROTOCOL_RESPONSE,
+      generatedAt: Date.now(),
+    }
   }
 }
 
 export const generatePhase1Protocol = async (topic: string): Promise<Phase1Data> => {
-  await new Promise((resolve) => setTimeout(resolve, 1800))
-  return {
-    mainQuestion: `¿Cómo impacta ${topic} en los resultados de aprendizaje y retención en contextos STEM?`,
-    subquestions: [
-      `¿Qué métricas definen el éxito de ${topic}?`,
-      `¿Qué poblaciones obtienen mayor beneficio al aplicar ${topic}?`,
-    ],
-    objectives: `Evaluar rigurosamente la eficacia de ${topic} combinando métricas cuantitativas (engagement, retención) y cualitativas (percepción docente).`,
-    pico: {
-      population: 'Estudiantes universitarios en programas STEM',
-      intervention: `${topic} potenciadas con analítica e IA`,
-      comparison: 'Metodologías tradicionales sin gamificación / IA',
-      outcome: 'Mejora en aprendizaje basado en evidencia y reducción de deserción',
-    },
-    inclusionCriteria: ['Estudios 2019-2025', 'Muestran métricas cuantitativas', 'Contextos STEM o salud'],
-    exclusionCriteria: ['Artículos sin revisión por pares', 'Estudios sin datos replicables'],
-  }
+  const sanitizedTopic = topic.trim() || 'aprendizaje impulsado por IA'
+  const payload = await generateProtocolFromTemplate(sanitizedTopic)
+  return mapProtocolToPhase1(sanitizedTopic, payload)
 }
 
 const SAMPLE_EXTRACTION: ExtractionPayload = {
@@ -132,18 +172,19 @@ const SAMPLE_EXTRACTION: ExtractionPayload = {
   limitations: ['Muestra concentrada en un solo país', 'Sin seguimiento longitudinal'],
 }
 
-export const extractDataRAG = async (_pdfText: string): Promise<ExtractionPayload> => {
-  const hasApiKey = Boolean(import.meta.env.VITE_GROQ_API_KEY)
-  const simulatedDelay = async () => new Promise((resolve) => setTimeout(resolve, 1200))
-
-  if (!hasApiKey) {
-    await simulatedDelay()
+export const extractDataRAG = async (pdfText: string): Promise<ExtractionPayload> => {
+  if (!hasProxy || !pdfText?.trim()) {
+    await delay(1200)
     return SAMPLE_EXTRACTION
   }
 
-  // TODO: Integrar Groq real cuando haya API key.
-  await simulatedDelay()
-  return SAMPLE_EXTRACTION
+  try {
+    return await proxyPost<ExtractionPayload>('/groq/extraction', { pdfText })
+  } catch (error) {
+    console.error('extractDataRAG error', error)
+    await delay(800)
+    return SAMPLE_EXTRACTION
+  }
 }
 
 const SAMPLE_NARRATIVE = `Los estudios analizados muestran una tendencia creciente desde 2019, con una concentración importante en Norteamérica y Europa. En general, la implementación de herramientas basadas en IA reportó mejoras consistentes en la rapidez de retroalimentación y en la precisión de las evaluaciones.
@@ -152,39 +193,10 @@ Los temas predominantes indican que las intervenciones más efectivas combinan d
 
 Finalmente, se observan vacíos de evidencia en poblaciones de educación técnica y en seguimientos longitudinales. Estos hallazgos sugieren priorizar estudios multicéntricos y métricas de impacto a largo plazo.`
 
-const groqApiKey = import.meta.env.VITE_GROQ_API_KEY
-const isBrowser = typeof window !== 'undefined'
-const groqClient = !isBrowser && groqApiKey ? new Groq({ apiKey: groqApiKey }) : null
-const GROQ_MODEL = 'llama3-70b-8192'
-
-const stripCodeFence = (content: string) => content.replace(/```json|```/g, '').trim()
-
-const callGroqChat = async (
-  messages: { role: 'system' | 'user'; content: string }[],
-  options?: { temperature?: number; max_tokens?: number },
-) => {
-  if (!groqClient) return null
-  try {
-    const response = await groqClient.chat.completions.create({
-      model: GROQ_MODEL,
-      temperature: options?.temperature ?? 0.2,
-      max_tokens: options?.max_tokens ?? 2048,
-      messages,
-    })
-    return response.choices?.[0]?.message?.content ?? null
-  } catch (error) {
-    console.error('Groq request failed', error)
-    return null
-  }
-}
-
 export const generateNarrative = async (
   themes: SynthesisTheme[],
   stats: SynthesisStats,
 ): Promise<string> => {
-  const hasApiKey = Boolean(import.meta.env.VITE_GROQ_API_KEY)
-  const simulatedDelay = async () => new Promise((resolve) => setTimeout(resolve, 1500))
-
   const themeSummary =
     themes.length > 0 ? themes.map((theme) => `${theme.title}: ${theme.description}`).join(' | ') : 'Sin temas definidos'
 
@@ -197,14 +209,19 @@ export const generateNarrative = async (
       .join(' | '),
   }
 
-  if (!hasApiKey) {
-    await simulatedDelay()
+  if (!hasProxy) {
+    await delay(1200)
     return `${SAMPLE_NARRATIVE}\n\nTemas clave: ${themeSummary}\nDatos cuantitativos: ${numericSummary.years}`
   }
 
-  // TODO: Replace with real Groq SDK call.
-  await simulatedDelay()
-  return SAMPLE_NARRATIVE
+  try {
+    const response = await proxyPost<{ narrative: string }>('/groq/narrative', { themes, stats })
+    return response.narrative?.trim() || SAMPLE_NARRATIVE
+  } catch (error) {
+    console.error('generateNarrative error', error)
+    await delay(800)
+    return SAMPLE_NARRATIVE
+  }
 }
 
 const computeWordCountFromManuscript = (manuscript: Manuscript) => {
@@ -257,45 +274,33 @@ export const generateFullManuscript = async (
   projectId: string,
   aggregated: AggregatedProjectData,
 ): Promise<Manuscript> => {
-  const hasApiKey = Boolean(groqClient)
-  const simulatedDelay = async () => new Promise((resolve) => setTimeout(resolve, 2000))
-
-  if (!hasApiKey) {
-    await simulatedDelay()
+  if (!hasProxy) {
+    await delay(1500)
     return DEFAULT_MANUSCRIPT(projectId, aggregated)
   }
 
   try {
-    const response = await groqClient!.chat.completions.create({
-      model: 'llama3-70b-8192',
-      temperature: 0.2,
-      max_tokens: 4096,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Eres un experto redactor científico. Escribe un manuscrito de Revisión Sistemática siguiendo estrictamente la guía PRISMA 2020. Usa tono académico formal, voz pasiva y estructura IMRyD. Responde ÚNICAMENTE con un objeto JSON que siga el esquema {abstract, introduction, methods, results, discussion, conclusions, references[]}.',
-        },
-        {
-          role: 'user',
-          content: `Datos consolidados del proyecto:\n${JSON.stringify(aggregated, null, 2)}`,
-        },
-      ],
-    })
+    const response = await proxyPost<Partial<Manuscript> & { references?: string[]; generatedAt?: number }>(
+      '/groq/manuscript',
+      {
+        projectId,
+        aggregated,
+      },
+    )
 
-    const content = response.choices?.[0]?.message?.content ?? ''
-    const cleaned = content.replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(cleaned) as Partial<Manuscript> & { references?: string[] }
     const base = createEmptyManuscript(projectId)
     const manuscript = {
       ...base,
-      ...parsed,
-      references: parsed.references ?? [],
-      generatedAt: Date.now(),
+      ...response,
+      projectId,
+      references: response.references ?? [],
+      generatedAt: response.generatedAt ?? Date.now(),
     }
+
     return { ...manuscript, wordCount: computeWordCountFromManuscript(manuscript) }
   } catch (error) {
     console.error('generateFullManuscript error', error)
+    await delay(1000)
     return DEFAULT_MANUSCRIPT(projectId, aggregated)
   }
 }

@@ -54,17 +54,112 @@ const mockPapers: ExternalPaper[] = [
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const PROXY_BASE_URL = import.meta.env.VITE_PROXY_BASE_URL?.replace(/\/$/, '') ?? ''
+const hasProxy = Boolean(PROXY_BASE_URL)
+const RESULT_LIMIT = 8
+
+type ProxyListResponse = {
+  items?: Array<Partial<ExternalPaper> & Record<string, unknown>>
+}
+
+const sanitizePaper = (paper: Partial<ExternalPaper>): ExternalPaper => ({
+  id: paper.id ?? crypto.randomUUID(),
+  source: (paper.source ?? 'semantic_scholar') as ExternalSource,
+  title: paper.title ?? 'Título no disponible',
+  authors: Array.isArray(paper.authors) && paper.authors.length > 0 ? (paper.authors as string[]) : ['Autor no registrado'],
+  year: typeof paper.year === 'number' && !Number.isNaN(paper.year) ? paper.year : new Date().getFullYear(),
+  abstract:
+    typeof paper.abstract === 'string' && paper.abstract.trim().length > 0
+      ? paper.abstract.trim()
+      : 'Resumen no disponible para este registro.',
+  doi: paper.doi ?? undefined,
+  url: paper.url ?? '#',
+  isOpenAccess: Boolean(paper.isOpenAccess),
+  citationCount: typeof paper.citationCount === 'number' ? paper.citationCount : undefined,
+})
+
+const proxyGet = async <T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> => {
+  if (!hasProxy) {
+    throw new Error('Proxy base URL is not configured')
+  }
+
+  const query = new URLSearchParams()
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      query.set(key, String(value))
+    }
+  })
+
+  const url = `${PROXY_BASE_URL}${path}${query.toString() ? `?${query.toString()}` : ''}`
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Proxy request failed (${response.status}): ${text}`)
+  }
+
+  return (await response.json()) as T
+}
+
+const fetchPubMed = async (query: string) => {
+  const data = await proxyGet<ProxyListResponse>('/pubmed/search', { q: query, limit: RESULT_LIMIT })
+  return (data.items ?? []).map((item) =>
+    sanitizePaper({
+      ...item,
+      source: 'pubmed',
+      abstract: item.abstract ?? `Registro PubMed relacionado con "${query}".`,
+    }),
+  )
+}
+
+const fetchSemanticScholar = async (query: string) => {
+  const data = await proxyGet<ProxyListResponse>('/semantic-scholar/search', { q: query, limit: RESULT_LIMIT })
+  return (data.items ?? []).map((item) => sanitizePaper({ ...item, source: 'semantic_scholar' }))
+}
+
+const fetchCrossRef = async (query: string) => {
+  const data = await proxyGet<ProxyListResponse>('/crossref/search', { q: query, rows: RESULT_LIMIT })
+  return (data.items ?? []).map((item) => sanitizePaper({ ...item, source: 'crossref' }))
+}
+
+const fetchEuropePMC = async (query: string) => {
+  const data = await proxyGet<ProxyListResponse>('/europe-pmc/search', { q: query, pageSize: RESULT_LIMIT })
+  return (data.items ?? []).map((item) => sanitizePaper({ ...item, source: 'europe_pmc' }))
+}
+
+const sourceFetchers: Record<ExternalSource, (query: string) => Promise<ExternalPaper[]>> = {
+  semantic_scholar: fetchSemanticScholar,
+  pubmed: fetchPubMed,
+  crossref: fetchCrossRef,
+  europe_pmc: fetchEuropePMC,
+}
+
 export const searchFederated = async (query: string, databases: ExternalSource[]): Promise<ExternalPaper[]> => {
-  await delay(2000)
+  const sanitizedQuery = query.trim()
+  if (!sanitizedQuery) return []
 
-  const lowered = query.toLowerCase()
+  if (!hasProxy) {
+    await delay(1500)
+    const lowered = sanitizedQuery.toLowerCase()
+    return mockPapers
+      .filter((paper) => databases.includes(paper.source))
+      .map((paper) => ({
+        ...paper,
+        title: `${paper.title} · ${lowered.includes('gamification') ? 'Gamification' : sanitizedQuery}`,
+      }))
+  }
 
-  return mockPapers
-    .filter((paper) => databases.includes(paper.source))
-    .map((paper) => ({
-      ...paper,
-      title: `${paper.title} · ${lowered.includes('gamification') ? 'Gamification' : query}`,
-    }))
+  const tasks = databases.map(async (source) => {
+    try {
+      return await sourceFetchers[source](sanitizedQuery)
+    } catch (error) {
+      console.error(`searchFederated:${source}`, error)
+      return []
+    }
+  })
+
+  const results = await Promise.all(tasks)
+  return results.flat()
 }
 
 export const generateSearchStrategies = async (topic: string): Promise<SearchStrategy[]> => {

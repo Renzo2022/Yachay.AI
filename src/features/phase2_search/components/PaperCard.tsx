@@ -19,6 +19,13 @@ const ACCESS_STYLES = {
   },
 }
 
+const SOURCE_LABELS: Record<ExternalPaper['source'], string> = {
+  semantic_scholar: 'Semantic Scholar',
+  pubmed: 'PubMed',
+  crossref: 'CrossRef',
+  europe_pmc: 'Europe PMC',
+}
+
 export const PaperCard = ({ paper, selected, onToggle }: PaperCardProps) => {
   const [expanded, setExpanded] = useState(false)
   const access = paper.isOpenAccess ? ACCESS_STYLES.open : ACCESS_STYLES.restricted
@@ -47,7 +54,7 @@ export const PaperCard = ({ paper, selected, onToggle }: PaperCardProps) => {
 
       <header>
         <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-900">
-          {paper.source === 'semantic_scholar' ? 'Semantic Scholar' : 'PubMed'} · {paper.year}
+          {SOURCE_LABELS[paper.source] ?? 'Base externa'} · {paper.year}
         </p>
         <h3 className="text-2xl font-black uppercase text-main">{paper.title}</h3>
         <p className="text-sm text-neutral-900 font-mono">{paper.authors.join(', ')}</p>

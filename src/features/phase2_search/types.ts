@@ -1,4 +1,4 @@
-export type ExternalSource = 'semantic_scholar' | 'pubmed'
+export type ExternalSource = 'semantic_scholar' | 'pubmed' | 'crossref' | 'europe_pmc'
 
 export interface ExternalPaper {
   id: string

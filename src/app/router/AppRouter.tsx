@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppLayout } from '../../core/layouts/AppLayout'
 import { ProtectedRoute } from '../../features/auth/ProtectedRoute'
-import { LoginView } from '../../features/auth/LoginView'
 import { DashboardView } from '../../features/projects/views/DashboardView'
 import { ProjectLayout } from '../../features/projects/layouts/ProjectLayout'
 import { Phase1View } from '../../features/phase1_planning/views/Phase1View'
@@ -17,7 +16,6 @@ export const AppRouter = () => (
   <BrowserRouter>
     <Routes>
       <Route path="/" element={<LandingGate />} />
-      <Route path="/login" element={<LoginView />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardView />} />

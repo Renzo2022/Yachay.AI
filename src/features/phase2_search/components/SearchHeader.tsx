@@ -13,6 +13,8 @@ type SearchHeaderProps = {
 const SOURCE_OPTIONS: { label: string; value: ExternalSource }[] = [
   { label: 'Semantic Scholar', value: 'semantic_scholar' },
   { label: 'PubMed', value: 'pubmed' },
+  { label: 'CrossRef', value: 'crossref' },
+  { label: 'Europe PMC', value: 'europe_pmc' },
 ]
 
 export const SearchHeader = ({ defaultQuestion, onSearch, onGenerateStrategies, disabled }: SearchHeaderProps) => {
