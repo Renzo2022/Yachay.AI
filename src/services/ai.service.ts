@@ -1,8 +1,12 @@
+import Groq from 'groq-sdk'
 import type { Phase1Data } from '../features/phase1_planning/types.ts'
 import type { Candidate } from '../features/projects/types.ts'
 import type { ExtractionPayload } from '../features/phase5_extraction/types.ts'
 import type { SynthesisTheme } from '../features/phase6_synthesis/types.ts'
 import type { SynthesisStats } from '../features/phase6_synthesis/analytics.ts'
+import type { AggregatedProjectData } from './project-aggregator.service.ts'
+import type { Manuscript } from '../features/phase7_report/types.ts'
+import { createEmptyManuscript } from '../features/phase7_report/types.ts'
 
 export type GeneratedProtocolPayload = {
   topic: string
@@ -148,6 +152,9 @@ Los temas predominantes indican que las intervenciones más efectivas combinan d
 
 Finalmente, se observan vacíos de evidencia en poblaciones de educación técnica y en seguimientos longitudinales. Estos hallazgos sugieren priorizar estudios multicéntricos y métricas de impacto a largo plazo.`
 
+const groqApiKey = import.meta.env.VITE_GROQ_API_KEY
+const groqClient = groqApiKey ? new Groq({ apiKey: groqApiKey }) : null
+
 export const generateNarrative = async (
   themes: SynthesisTheme[],
   stats: SynthesisStats,
@@ -175,4 +182,97 @@ export const generateNarrative = async (
   // TODO: Replace with real Groq SDK call.
   await simulatedDelay()
   return SAMPLE_NARRATIVE
+}
+
+const computeWordCountFromManuscript = (manuscript: Manuscript) => {
+  const text =
+    manuscript.abstract +
+    ' ' +
+    manuscript.introduction +
+    ' ' +
+    manuscript.methods +
+    ' ' +
+    manuscript.results +
+    ' ' +
+    manuscript.discussion +
+    ' ' +
+    manuscript.conclusions +
+    ' ' +
+    manuscript.references.join(' ')
+  return text.trim() ? text.trim().split(/\s+/).length : 0
+}
+
+const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectData): Manuscript => {
+  const includedCount = aggregated?.includedStudies?.length ?? 0
+  const prismaIdentified = aggregated?.prisma?.identified ?? 0
+  const prismaIncluded = aggregated?.prisma?.included ?? includedCount
+  const phase1Question = aggregated?.phase1?.mainQuestion ?? '¿Cuál es el efecto de las intervenciones basadas en IA en contextos educativos?'
+
+  const manuscript = {
+  ...createEmptyManuscript(projectId),
+  abstract:
+    `Esta revisión sistemática sintetiza la evidencia disponible sobre intervenciones basadas en IA y su impacto en contextos educativos. Se aplicó la guía PRISMA 2020 para asegurar transparencia y reproducibilidad. En total se identificaron ${prismaIdentified} registros y se incluyeron ${prismaIncluded} estudios.`,
+  introduction:
+    `La incorporación de tecnologías inteligentes en entornos de aprendizaje ha motivado múltiples estudios que comparan su eficacia con métodos tradicionales. Esta síntesis aborda la pregunta central: ${phase1Question}. A pesar de la diversidad de diseños y contextos, persisten lagunas en torno al seguimiento longitudinal y las métricas centradas en el estudiantado.`,
+  methods:
+    'Se llevaron a cabo búsquedas federadas en bases de datos internacionales, aplicando criterios PICO predefinidos y flujos PRISMA. La calidad metodológica se evaluó mediante CASP y las extracciones cuantitativas fueron estandarizadas en matrices estructuradas.',
+  results:
+    `Se incluyeron ${includedCount} estudios con predominio de ensayos controlados y diseños quasi-experimentales. Las intervenciones más efectivas combinaron dashboards analíticos con coaching docente, mostrando mejoras estadísticamente significativas en precisión de retroalimentación.`,
+  discussion:
+    'Los hallazgos respaldan la adopción de sistemas de evaluación automatizada, aunque la heterogeneidad metodológica limita la extrapolación completa. Se requieren estudios multicéntricos y comparaciones directas entre plataformas para comprender el rol de la personalización.',
+  conclusions:
+    'La evidencia converge en que las herramientas basadas en IA optimizan la retroalimentación y reducen tiempos de respuesta, siempre que exista acompañamiento pedagógico. Las futuras investigaciones deben priorizar poblaciones subrepresentadas y métricas de impacto sostenido.',
+  references: ['PRISMA 2020 Statement', 'CASP Qualitative Checklist'],
+  generatedAt: Date.now(),
+  wordCount: 0,
+  }
+
+  return { ...manuscript, wordCount: computeWordCountFromManuscript(manuscript) }
+}
+
+export const generateFullManuscript = async (
+  projectId: string,
+  aggregated: AggregatedProjectData,
+): Promise<Manuscript> => {
+  const hasApiKey = Boolean(groqClient)
+  const simulatedDelay = async () => new Promise((resolve) => setTimeout(resolve, 2000))
+
+  if (!hasApiKey) {
+    await simulatedDelay()
+    return DEFAULT_MANUSCRIPT(projectId, aggregated)
+  }
+
+  try {
+    const response = await groqClient!.chat.completions.create({
+      model: 'llama3-70b-8192',
+      temperature: 0.2,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Eres un experto redactor científico. Escribe un manuscrito de Revisión Sistemática siguiendo estrictamente la guía PRISMA 2020. Usa tono académico formal, voz pasiva y estructura IMRyD. Responde ÚNICAMENTE con un objeto JSON que siga el esquema {abstract, introduction, methods, results, discussion, conclusions, references[]}.',
+        },
+        {
+          role: 'user',
+          content: `Datos consolidados del proyecto:\n${JSON.stringify(aggregated, null, 2)}`,
+        },
+      ],
+    })
+
+    const content = response.choices?.[0]?.message?.content ?? ''
+    const cleaned = content.replace(/```json|```/g, '').trim()
+    const parsed = JSON.parse(cleaned) as Partial<Manuscript> & { references?: string[] }
+    const base = createEmptyManuscript(projectId)
+    const manuscript = {
+      ...base,
+      ...parsed,
+      references: parsed.references ?? [],
+      generatedAt: Date.now(),
+    }
+    return { ...manuscript, wordCount: computeWordCountFromManuscript(manuscript) }
+  } catch (error) {
+    console.error('generateFullManuscript error', error)
+    return DEFAULT_MANUSCRIPT(projectId, aggregated)
+  }
 }

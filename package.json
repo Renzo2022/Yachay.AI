@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
+    "docx": "^8.5.0",
     "firebase": "^12.6.0",
     "groq-sdk": "^0.37.0",
+    "jspdf": "^2.5.1",
     "pdfjs-dist": "^5.4.449",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
