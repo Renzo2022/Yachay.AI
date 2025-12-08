@@ -32,6 +32,32 @@ const parseJsonSafe = (content = "") => {
   }
 };
 
+const ensureJsonObject = (payload) => {
+  if (!payload) {
+    throw new Error("Empty Groq response");
+  }
+  if (typeof payload === "string") {
+    return parseJsonSafe(payload);
+  }
+  if (typeof payload === "object") {
+    return payload;
+  }
+  throw new Error("Unsupported Groq response type");
+};
+
+const extractErrorDetails = (error) => {
+  if (error?.response?.data) {
+    return error.response.data;
+  }
+  if (error?.response?.statusText) {
+    return error.response.statusText;
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  return "Unknown Groq error";
+};
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, timestamp: Date.now() });
 });
@@ -74,15 +100,12 @@ app.post("/groq/protocol", async (req, res) => {
     });
 
     const content = response.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty Groq response");
-    }
-
-    const parsed = parseJsonSafe(content);
+    const parsed = ensureJsonObject(content);
     res.json({ topic, protocol: parsed, generatedAt: Date.now() });
   } catch (error) {
-    console.error("/groq/protocol", error);
-    res.status(500).json({ error: "Groq protocol generation failed" });
+    const details = extractErrorDetails(error);
+    console.error("/groq/protocol", details);
+    res.status(500).json({ error: "Groq protocol generation failed", details });
   }
 });
 
@@ -122,14 +145,11 @@ ${pdfText.slice(0, 12000)}`,
     });
 
     const content = response.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty Groq response");
-    }
-
-    res.json(parseJsonSafe(content));
+    res.json(ensureJsonObject(content));
   } catch (error) {
-    console.error("/groq/extraction", error);
-    res.status(500).json({ error: "Groq extraction failed" });
+    const details = extractErrorDetails(error);
+    console.error("/groq/extraction", details);
+    res.status(500).json({ error: "Groq extraction failed", details });
   }
 });
 
