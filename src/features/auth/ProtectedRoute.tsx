@@ -7,14 +7,14 @@ export const ProtectedRoute = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-main text-text-main font-mono text-xl">
-        Verificando acceso...
+      <div className="min-h-screen bg-neutral-900 text-white flex items-center justify-center font-mono text-xl">
+        Verificando sesión...
       </div>
     )
   }
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location }} />
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   return <Outlet />

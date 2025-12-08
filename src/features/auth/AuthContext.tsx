@@ -1,114 +1,104 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import type { User } from 'firebase/auth'
-import { logout, observeAuthState, resolveRedirectResult, signInWithGoogle } from './auth.service.ts'
-import type { UserMetadata, IdTokenResult } from 'firebase/auth'
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
+import { firebaseAuth } from '../../services/firebase/firebase.ts'
+import { useToast } from '../../core/toast/ToastProvider.tsx'
 
-const AUTH_BYPASS = import.meta.env.VITE_AUTH_BYPASS === 'true'
-
-const devMetadata: UserMetadata = {
-  creationTime: new Date().toISOString(),
-  lastSignInTime: new Date().toISOString(),
-}
-
-const devUser = {
-  uid: 'dev-bypass',
-  email: 'dev@local.test',
-  displayName: 'Dev Bypass',
-  emailVerified: true,
-  isAnonymous: false,
-  metadata: devMetadata,
-  providerData: [],
-  providerId: 'firebase',
-  tenantId: null,
-  phoneNumber: null,
-  photoURL: null,
-  reload: async () => {},
-  delete: async () => {},
-  refreshToken: 'dev-bypass-token',
-  getIdToken: async () => 'dev-bypass-token',
-  getIdTokenResult: async () =>
-    ({
-      token: 'dev-bypass-token',
-      authTime: new Date().toISOString(),
-      issuedAtTime: new Date().toISOString(),
-      expirationTime: new Date(Date.now() + 3600 * 1000).toISOString(),
-      signInProvider: 'custom',
-      claims: {},
-      signInSecondFactor: null,
-    }) as IdTokenResult,
-  toJSON: () => ({}),
-} as User
+export type AuthUser = Pick<User, 'uid' | 'displayName' | 'email' | 'photoURL'>
 
 type AuthContextValue = {
-  user: User | null
+  user: AuthUser | null
   loading: boolean
-  signIn: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
-  isBypass: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-type AuthProviderProps = {
-  children: ReactNode
+const BYPASS_AUTH = import.meta.env.VITE_AUTH_BYPASS === 'true'
+const BYPASS_USER: AuthUser = {
+  uid: 'demo-user',
+  displayName: 'Researcher Demo',
+  email: 'demo@yachay.ai',
+  photoURL: null,
 }
 
-export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(() => (AUTH_BYPASS ? devUser : null))
-  const [loading, setLoading] = useState(!AUTH_BYPASS)
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { showToast } = useToast()
 
   useEffect(() => {
-    if (AUTH_BYPASS) {
+    if (BYPASS_AUTH) {
+      setUser(BYPASS_USER)
+      setLoading(false)
       return
     }
 
-    resolveRedirectResult().catch((error) => {
-      console.error('Error al completar el redirect de Google', error)
-    })
-
-    const unsubscribe = observeAuthState((firebaseUser) => {
-      setUser(firebaseUser)
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
+      if (firebaseUser) {
+        const { uid, displayName, email, photoURL } = firebaseUser
+        setUser({ uid, displayName, email, photoURL })
+      } else {
+        setUser(null)
+      }
       setLoading(false)
     })
-    return unsubscribe
+
+    return () => unsubscribe()
   }, [])
 
-  const value = useMemo<AuthContextValue>(
+  const signInWithGoogle = async () => {
+    if (BYPASS_AUTH) return
+    try {
+      const provider = new GoogleAuthProvider()
+      provider.setCustomParameters({ prompt: 'select_account' })
+      try {
+        await signInWithPopup(firebaseAuth, provider)
+        showToast({ type: 'success', message: 'Sesión iniciada' })
+      } catch (popupError) {
+        console.warn('Popup sign-in blocked, falling back to redirect', popupError)
+        await signInWithRedirect(firebaseAuth, provider)
+      }
+    } catch (error) {
+      console.error('Google sign-in failed', error)
+      showToast({ type: 'error', message: 'No pudimos iniciar sesión con Google' })
+      throw error
+    }
+  }
+
+  const handleSignOut = async () => {
+    if (BYPASS_AUTH) return
+    try {
+      await signOut(firebaseAuth)
+      showToast({ type: 'info', message: 'Sesión finalizada' })
+    } catch (error) {
+      console.error('Sign-out failed', error)
+      showToast({ type: 'error', message: 'No pudimos cerrar la sesión' })
+    }
+  }
+
+  const value = useMemo(
     () => ({
       user,
       loading,
-      isBypass: AUTH_BYPASS,
-      signIn: async () => {
-        if (AUTH_BYPASS) {
-          setUser(devUser)
-          return
-        }
-        await signInWithGoogle()
-      },
-      signOut: async () => {
-        if (AUTH_BYPASS) {
-          setUser(devUser)
-          return
-        }
-        await logout()
-      },
+      signInWithGoogle,
+      signOut: handleSignOut,
     }),
     [user, loading],
   )
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-main text-text-main font-mono text-xl">
-        Sincronizando identidad...
-      </div>
-    )
-  }
-
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext)
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider')

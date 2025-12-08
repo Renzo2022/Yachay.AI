@@ -1,40 +1,45 @@
-import { Navigate, useLocation } from 'react-router-dom'
-import { BrutalButton } from '../../core/ui-kit/BrutalButton.tsx'
-import { BrutalCard } from '../../core/ui-kit/BrutalCard.tsx'
+import { useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.tsx'
+import { BrutalButton } from '../../core/ui-kit/BrutalButton.tsx'
 
 export const LoginView = () => {
-  const { signIn, user } = useAuth()
+  const { user, loading, signInWithGoogle } = useAuth()
+  const navigate = useNavigate()
   const location = useLocation()
 
-  if (user) {
-    const redirect = location.state?.from?.pathname ?? '/'
-    return <Navigate to={redirect} replace />
+  useEffect(() => {
+    if (!loading && user) {
+      const redirectTo = (location.state as { from?: Location })?.from?.pathname ?? '/dashboard'
+      navigate(redirectTo, { replace: true })
+    }
+  }, [loading, user, navigate, location.state])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-neutral-900 text-white flex items-center justify-center font-mono text-xl">
+        preparando consola...
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 text-neutral-900 flex items-center justify-center px-4">
-      <BrutalCard
-        title={
-          <div className="flex flex-col gap-1 text-neutral-900">
-            <span className="text-sm font-mono tracking-[0.4em] text-neutral-900">YACHAY AI</span>
-            <span className="text-4xl font-extrabold text-neutral-900">Gestión de Revisiones Sistemáticas</span>
-          </div>
-        }
-        className="max-w-lg w-full bg-white border-4 border-black"
-      >
-        <p className="text-neutral-900 mb-6 font-mono">
-          Automatiza PICO, cribado, extracción y síntesis apoyado por IA Groq + Firebase. Accede con tu cuenta institucional.
+    <div className="min-h-screen bg-neutral-900 text-white flex flex-col items-center justify-center gap-8 px-6 text-center">
+      <div>
+        <p className="text-sm font-mono uppercase tracking-[0.6em] text-accent-secondary">Yachay AI</p>
+        <h1 className="text-4xl font-black uppercase mt-4">Centro de Control Neo-Brutalista</h1>
+        <p className="text-lg font-mono text-neutral-200 mt-4">
+          Autentícate para sincronizar tus proyectos PRISMA y recuperar el progreso guardado en Firestore.
         </p>
-        <BrutalButton
-          className="w-full justify-center bg-accent-primary text-white"
-          variant="primary"
-          size="md"
-          onClick={() => signIn()}
-        >
-          Entrar con Google
-        </BrutalButton>
-      </BrutalCard>
+      </div>
+
+      <BrutalButton
+        variant="primary"
+        className="bg-accent-secondary text-black text-lg px-8 py-4"
+        onClick={signInWithGoogle}
+      >
+        Ingresar con Google
+      </BrutalButton>
     </div>
   )
 }

@@ -153,7 +153,30 @@ Los temas predominantes indican que las intervenciones más efectivas combinan d
 Finalmente, se observan vacíos de evidencia en poblaciones de educación técnica y en seguimientos longitudinales. Estos hallazgos sugieren priorizar estudios multicéntricos y métricas de impacto a largo plazo.`
 
 const groqApiKey = import.meta.env.VITE_GROQ_API_KEY
-const groqClient = groqApiKey ? new Groq({ apiKey: groqApiKey }) : null
+const isBrowser = typeof window !== 'undefined'
+const groqClient = !isBrowser && groqApiKey ? new Groq({ apiKey: groqApiKey }) : null
+const GROQ_MODEL = 'llama3-70b-8192'
+
+const stripCodeFence = (content: string) => content.replace(/```json|```/g, '').trim()
+
+const callGroqChat = async (
+  messages: { role: 'system' | 'user'; content: string }[],
+  options?: { temperature?: number; max_tokens?: number },
+) => {
+  if (!groqClient) return null
+  try {
+    const response = await groqClient.chat.completions.create({
+      model: GROQ_MODEL,
+      temperature: options?.temperature ?? 0.2,
+      max_tokens: options?.max_tokens ?? 2048,
+      messages,
+    })
+    return response.choices?.[0]?.message?.content ?? null
+  } catch (error) {
+    console.error('Groq request failed', error)
+    return null
+  }
+}
 
 export const generateNarrative = async (
   themes: SynthesisTheme[],

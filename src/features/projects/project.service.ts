@@ -32,7 +32,7 @@ const mapProjectDoc = (snapshot: QueryDocumentSnapshot<DocumentData>) => snapsho
 export const createProject = async (userId: string, data: Partial<Project>) => {
   const projectDoc = doc(projectsCollection)
   const timestamp = Date.now()
-  const project: Project = createProjectDefaults({
+  const project = createProjectDefaults({
     ...data,
     id: projectDoc.id,
     userId,
@@ -40,7 +40,12 @@ export const createProject = async (userId: string, data: Partial<Project>) => {
     updatedAt: timestamp,
   })
 
-  await setDoc(projectDoc, project)
+  const payload = project.templateUsed === undefined ? { ...project, templateUsed: undefined } : project
+  if (payload.templateUsed === undefined) {
+    delete payload.templateUsed
+  }
+
+  await setDoc(projectDoc, payload)
   return project
 }
 
