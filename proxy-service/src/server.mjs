@@ -2,6 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import Groq from "groq-sdk";
+import { jsonrepair } from "jsonrepair";
 
 dotenv.config();
 
@@ -21,6 +22,15 @@ const ensureGroq = () => {
 
 const cleanJson = (content = "") =>
   content.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+const parseJsonSafe = (content = "") => {
+  const cleaned = cleanJson(content);
+  try {
+    return JSON.parse(cleaned);
+  } catch (error) {
+    return JSON.parse(jsonrepair(cleaned));
+  }
+};
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, timestamp: Date.now() });
@@ -68,7 +78,7 @@ app.post("/groq/protocol", async (req, res) => {
       throw new Error("Empty Groq response");
     }
 
-    const parsed = JSON.parse(cleanJson(content));
+    const parsed = parseJsonSafe(content);
     res.json({ topic, protocol: parsed, generatedAt: Date.now() });
   } catch (error) {
     console.error("/groq/protocol", error);
@@ -116,7 +126,7 @@ ${pdfText.slice(0, 12000)}`,
       throw new Error("Empty Groq response");
     }
 
-    res.json(JSON.parse(cleanJson(content)));
+    res.json(parseJsonSafe(content));
   } catch (error) {
     console.error("/groq/extraction", error);
     res.status(500).json({ error: "Groq extraction failed" });
@@ -198,7 +208,7 @@ ${JSON.stringify(aggregated, null, 2)}`,
       throw new Error("Empty Groq response");
     }
 
-    const manuscript = JSON.parse(cleanJson(content));
+    const manuscript = parseJsonSafe(content);
     res.json({ ...manuscript, generatedAt: Date.now(), projectId });
   } catch (error) {
     console.error("/groq/manuscript", error);
