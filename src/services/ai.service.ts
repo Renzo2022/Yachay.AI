@@ -114,16 +114,14 @@ const mapProtocolToPhase1 = (topic: string, payload: GeneratedProtocolPayload): 
   const pico = payload.protocol.pico ?? PICO_TEMPLATE
   const ensureSubquestions = (subquestions: string[]) => {
     const cleaned = subquestions.map((entry) => entry.trim()).filter(Boolean)
-    if (cleaned.length >= 3 && cleaned.length <= 5) return cleaned
-
-    if (cleaned.length > 5) {
+    if (cleaned.length >= 5) {
       return cleaned.slice(0, 5)
     }
 
     const defaults = PROTOCOL_RESPONSE.subquestions
     const combined = [...cleaned]
     let index = 0
-    while (combined.length < 3 && index < defaults.length) {
+    while (combined.length < 5 && index < defaults.length) {
       if (!combined.includes(defaults[index])) {
         combined.push(defaults[index])
       }

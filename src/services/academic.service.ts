@@ -229,41 +229,61 @@ const SAMPLE_KEYWORD_MATRIX: KeywordDerivation[] = [
   },
 ]
 
-const SAMPLE_DATABASE_STRATEGIES: DatabaseStrategy[] = [
+const buildDatabaseStrategies = (keywords: string[]): DatabaseStrategy[] => [
   {
     database: 'PubMed',
-    query:
-      '("argumentation analysis"[Title/Abstract] OR "argument mining") AND ("large language model" OR GPT OR BERT) AND ("traditional NLP" OR "rule-based")',
+    query: `(${keywords.join(' OR ')}) AND ("large language model" OR GPT OR BERT)`,
     filters: 'Últimos 5 años · Estudios revisados por pares · Idioma: inglés',
-    estimatedResults: '45-70 registros',
+    estimatedResults: '40-60 registros',
   },
   {
     database: 'Semantic Scholar',
-    query:
-      '("argument evaluation" OR "argument structure detection") AND ("transformer model" OR "semantic analysis") AND ("baseline model" OR "machine learning")',
+    query: `(${keywords.join(' OR ')}) AND ("transformer model" OR "semantic analysis")`,
     filters: 'Computer Science · Education · Fecha ≥ 2020',
-    estimatedResults: '60-90 registros',
+    estimatedResults: '55-80 registros',
   },
   {
     database: 'CrossRef',
-    query:
-      '(title:"argument mining" OR title:"argument evaluation") AND (abstract:"large language model" OR abstract:"deep contextual embedding")',
+    query: `title:(${keywords[0] ?? ''}) AND abstract:("deep contextual embedding" OR "evaluation metrics")`,
     filters: 'Article OR Proceeding · DOI obligatorio',
-    estimatedResults: '80-120 registros',
+    estimatedResults: '70-100 registros',
   },
   {
     database: 'Europe PMC',
-    query:
-      '("argumentation analysis" OR "argument mining") AND ("LLM" OR "transformer") AND ("evaluation metrics" OR accuracy OR validity)',
+    query: `(${keywords.join(' OR ')}) AND ("evaluation metrics" OR accuracy OR validity)`,
     filters: 'Open Access · 2020-2025',
-    estimatedResults: '30-50 registros',
+    estimatedResults: '25-45 registros',
   },
 ]
 
 const SAMPLE_STRATEGY: Phase2Strategy = {
   question: '¿Cómo impactan los modelos de lenguaje grandes en la evaluación automática de la argumentación?',
   keywordMatrix: SAMPLE_KEYWORD_MATRIX,
-  databaseStrategies: SAMPLE_DATABASE_STRATEGIES,
+  subquestionStrategies: [
+    {
+      subquestion: '¿Cómo se comparan los LLM con métodos tradicionales para detectar falacias?',
+      keywords: ['"fallacy detection"', '"argument flaw"', '"logical fallacy"'],
+      databaseStrategies: buildDatabaseStrategies(['"fallacy detection"', '"argument flaw"', '"logical fallacy"']),
+    },
+    {
+      subquestion: '¿Qué métricas usan los LLM para evaluar la calidad argumentativa?',
+      keywords: ['"argument quality metrics"', '"argument scoring"', '"argument evaluation metric"'],
+      databaseStrategies: buildDatabaseStrategies([
+        '"argument quality metrics"',
+        '"argument scoring"',
+        '"argument evaluation metric"',
+      ]),
+    },
+    {
+      subquestion: '¿En qué dominios se aplican los LLM para análisis argumentativo educativo?',
+      keywords: ['"educational argumentation"', '"learning analytics argumentation"', '"argument mining education"'],
+      databaseStrategies: buildDatabaseStrategies([
+        '"educational argumentation"',
+        '"learning analytics argumentation"',
+        '"argument mining education"',
+      ]),
+    },
+  ],
   recommendations: [
     'Utiliza las subpreguntas derivadas para crear bloques adicionales (AND) cuando necesites especificar dominio: educativo, legal o debates.',
     'Combina los términos del componente C solo cuando busques comparaciones directas; para estudios de caso puro, omítelos para ampliar el recall.',
@@ -289,3 +309,6 @@ export const generatePhase2Strategy = async (phase1: Phase1Data, topic: string):
     return SAMPLE_STRATEGY
   }
 }
+
+// Backwards compatibility while components migrate to the new API name.
+export const generateSearchStrategies = generatePhase2Strategy

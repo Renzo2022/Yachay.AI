@@ -19,6 +19,7 @@ export const Phase2View = () => {
   const [strategy, setStrategy] = useState<Phase2Strategy | null>(null)
   const [strategyLoading, setStrategyLoading] = useState(false)
   const [strategyError, setStrategyError] = useState<string | null>(null)
+  const [hiddenSubquestions, setHiddenSubquestions] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
@@ -37,6 +38,7 @@ export const Phase2View = () => {
     try {
       const payload = await generatePhase2Strategy(project.phase1 ?? createPhase1Defaults(), project.name)
       setStrategy(payload)
+      setHiddenSubquestions(new Set())
     } catch (error) {
       console.error('handleGenerateStrategies', error)
       setStrategy(null)
@@ -60,6 +62,29 @@ export const Phase2View = () => {
 
   const selectedPapers = useMemo(() => papers.filter((paper) => selectedIds.has(paper.id)), [papers, selectedIds])
 
+  const visibleSubquestions = useMemo(() => {
+    if (!strategy) return []
+    return strategy.subquestionStrategies.filter((block) => !hiddenSubquestions.has(block.subquestion))
+  }, [strategy, hiddenSubquestions])
+
+  const showStatus = (message: string) => {
+    setStatusMessage(message)
+    setTimeout(() => setStatusMessage(null), 3000)
+  }
+
+  const handleRemoveSubquestion = (subquestion: string) => {
+    if (!strategy) return
+    if (visibleSubquestions.length <= 1) {
+      showStatus('Debes conservar al menos una subpregunta.')
+      return
+    }
+    setHiddenSubquestions((prev) => {
+      const next = new Set(prev)
+      next.add(subquestion)
+      return next
+    })
+  }
+
   const checklistItems = [
     {
       id: 'search',
@@ -73,8 +98,8 @@ export const Phase2View = () => {
     },
     {
       id: 'queries',
-      label: 'Diseñar cadenas de búsqueda',
-      completed: Boolean(strategy?.databaseStrategies?.length),
+      label: 'Diseñar cadenas de búsqueda (subpreguntas validadas)',
+      completed: visibleSubquestions.length > 0,
     },
     {
       id: 'documentation',
@@ -93,8 +118,7 @@ export const Phase2View = () => {
       origin: { y: 0.7 },
       colors: ['#00FF00', '#00FFFF', '#FFD300'],
     })
-    setStatusMessage(`${selectedPapers.length} candidatos guardados`)
-    setTimeout(() => setStatusMessage(null), 3000)
+    showStatus(`${selectedPapers.length} candidatos guardados`)
     setSelectedIds(new Set())
     setSaving(false)
   }
@@ -122,7 +146,14 @@ export const Phase2View = () => {
             </div>
           ) : null}
 
-          {strategy && !strategyLoading ? <StrategySummary strategy={strategy} /> : null}
+          {strategy && !strategyLoading ? (
+            <StrategySummary
+              strategy={strategy}
+              subquestions={visibleSubquestions}
+              onRemoveSubquestion={handleRemoveSubquestion}
+              disableRemoval={visibleSubquestions.length <= 1}
+            />
+          ) : null}
 
           {searchPerformed && papers.length === 0 ? (
             <div className="border-4 border-dashed border-accent-success bg-neutral-900 text-text-main text-center py-20 px-8 shadow-brutal">

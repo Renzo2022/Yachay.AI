@@ -257,7 +257,7 @@ app.post("/groq/search-strategy", async (req, res) => {
         {
           role: "system",
           content:
-            "Eres un documentalista experto en búsquedas federadas (PubMed, Semantic Scholar, CrossRef, Europe PMC). Responde solo JSON con campos {question, keywordMatrix, databaseStrategies, recommendations}. keywordMatrix debe traer objetos {component:'P'|'I'|'C'|'O', concept, terms[]} (mínimo 4 términos cada uno). databaseStrategies debe incluir por lo menos las cuatro bases mencionadas con {database, query, filters, estimatedResults}. recommendations es un array de strings accionables.",
+            "Eres un documentalista experto en búsquedas federadas (PubMed, Semantic Scholar, CrossRef, Europe PMC). Responde solo JSON con campos {question, keywordMatrix, subquestionStrategies, recommendations}. keywordMatrix debe traer objetos {component:'P'|'I'|'C'|'O', concept, terms[]} (mínimo 4 términos cada uno). subquestionStrategies debe contener EXACTAMENTE 5 elementos, cada uno con {subquestion, keywords[], databaseStrategies[]}. Cada databaseStrategies[] interno incluye objetos {database, query, filters, estimatedResults} para las cuatro bases mencionadas, personalizadas a esa subpregunta. recommendations es un array de strings accionables.",
         },
         {
           role: "user",
@@ -268,7 +268,7 @@ ${JSON.stringify(phase1, null, 2)}
 Instrucciones:
 1. Define question con la pregunta principal resultante (o reformulada si falta).
 2. keywordMatrix debe integrar términos y sinónimos derivados de cada componente PICO y de las subpreguntas.
-3. databaseStrategies debe usar operadores booleanos (AND/OR), truncamientos y filtros claros (fechas, idioma, tipo de documento) para PubMed, Semantic Scholar, CrossRef y Europe PMC. Incluye un estimado textual de resultados esperados (ej. "40-60 registros").
+3. Genera exactamente 5 subpreguntas derivadas. Para cada subpregunta construye subquestionStrategies[i] con: subquestion, keywords específicos (al menos 3) y databaseStrategies con operadores booleanos, truncamientos y filtros claros (fechas, idioma, tipo de documento) para PubMed, Semantic Scholar, CrossRef y Europe PMC. Incluye un estimado textual de resultados esperados (ej. "40-60 registros").
 4. recommendations debe justificar la cobertura semántica, comparación explícita, refinamientos sugeridos y consideraciones de reproducibilidad.`,
         },
       ],

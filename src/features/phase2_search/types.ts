@@ -28,9 +28,15 @@ export interface DatabaseStrategy {
   estimatedResults: string
 }
 
+export interface SubquestionStrategy {
+  subquestion: string
+  keywords: string[]
+  databaseStrategies: DatabaseStrategy[]
+}
+
 export interface Phase2Strategy {
   question: string
   keywordMatrix: KeywordDerivation[]
-  databaseStrategies: DatabaseStrategy[]
+  subquestionStrategies: SubquestionStrategy[]
   recommendations: string[]
 }
