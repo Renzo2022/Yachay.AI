@@ -2,6 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import Groq from "groq-sdk";
+import { CohereClient } from "cohere-ai";
 import { jsonrepair } from "jsonrepair";
 
 dotenv.config();
@@ -9,7 +10,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "models/gemini-pro";
+const COHERE_MODEL = process.env.COHERE_MODEL ?? "command-r-plus";
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
@@ -21,11 +22,11 @@ const ensureGroq = () => {
   return new Groq({ apiKey: process.env.GROQ_API_KEY });
 };
 
-const ensureGoogleKey = () => {
-  if (!process.env.GOOGLE_API_KEY) {
-    throw new Error("Missing GOOGLE_API_KEY env var");
+const ensureCohere = () => {
+  if (!process.env.COHERE_API_KEY) {
+    throw new Error("Missing COHERE_API_KEY env var");
   }
-  return process.env.GOOGLE_API_KEY;
+  return new CohereClient({ token: process.env.COHERE_API_KEY });
 };
 
 const cleanJson = (content = "") =>
@@ -96,7 +97,7 @@ const extractJsonArray = (text = "") => {
   }
 };
 
-const buildGeminiPrompt = (criteria = {}, articles = []) => {
+const buildClassificationPrompt = (criteria = {}, articles = []) => {
   const inclusion =
     Array.isArray(criteria.inclusionCriteria) && criteria.inclusionCriteria.length
       ? criteria.inclusionCriteria.map((entry) => `- ${entry}`).join("\n")
@@ -133,7 +134,7 @@ Debes responder EXCLUSIVAMENTE en JSON válido con este formato:
   }
 ]
 
-Artículos a clasificar:
+AArtículos a clasificar:
 ${JSON.stringify(payload, null, 2)}
 `;
 };
@@ -413,7 +414,7 @@ Instrucciones:
   }
 });
 
-app.post("/gemini/classify", async (req, res) => {
+app.post("/cohere/classify", async (req, res) => {
   const { criteria, articles } = req.body ?? {};
   if (!criteria || !Array.isArray(articles) || articles.length === 0) {
     res.status(400).json({ error: "Missing criteria or articles" });
@@ -421,39 +422,24 @@ app.post("/gemini/classify", async (req, res) => {
   }
 
   try {
-    const apiKey = ensureGoogleKey();
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+    const cohere = ensureCohere();
     const batches = chunkArray(articles, 10);
     const aggregated = [];
 
     for (const batch of batches) {
-      const prompt = buildGeminiPrompt(criteria, batch);
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2048,
-          },
-        }),
+      const prompt = buildClassificationPrompt(criteria, batch);
+      const response = await cohere.chat({
+        model: COHERE_MODEL,
+        message: prompt,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Gemini API error (${response.status}): ${text}`);
-      }
-
-      const data = await response.json();
       const text =
-        data?.candidates
-          ?.map((candidate) => candidate?.content?.parts?.map((part) => part?.text ?? "").join("\n"))
-          .filter(Boolean)
-          .join("\n") ?? "";
+        response?.message?.content?.map((part) => part?.text ?? "").join("\n").trim() ?? "";
       const parsed = extractJsonArray(text);
       if (!Array.isArray(parsed)) {
-        throw new Error("Gemini devolvió un formato inesperado.");
+        throw new Error("Cohere devolvió un formato inesperado.");
       }
 
       parsed.forEach((entry) => {
@@ -472,10 +458,10 @@ app.post("/gemini/classify", async (req, res) => {
 
     res.json({ results: aggregated });
   } catch (error) {
-    console.error("/gemini/classify", error);
+    console.error("/cohere/classify", error);
     res.status(500).json({
-      error: "Gemini classification failed",
-      details: error?.message ?? "Unknown Gemini error",
+      error: "Cohere classification failed",
+      details: error?.message ?? "Unknown Cohere error",
     });
   }
 });

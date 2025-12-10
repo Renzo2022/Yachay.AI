@@ -94,7 +94,7 @@ const normalizeDecision = (label: string): NonNullable<Candidate['decision']> =>
   return 'uncertain'
 }
 
-export const classifyCandidatesWithGemini = async (
+export const classifyCandidatesWithCohere = async (
   candidates: Candidate[],
   criteria: Phase1Data,
 ): Promise<Array<{ id: string; decision: NonNullable<Candidate['decision']>; justification: string; subtopic?: string }>> => {
@@ -103,7 +103,7 @@ export const classifyCandidatesWithGemini = async (
   }
 
   const response = await proxyPost<{ results: Array<{ id: string; decision: string; justification: string; subtopic?: string }> }>(
-    '/gemini/classify',
+    '/cohere/classify',
     {
       criteria,
       articles: candidates.map(({ id, title, abstract }) => ({ id, title, abstract })),

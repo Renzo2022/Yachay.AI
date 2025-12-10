@@ -11,7 +11,7 @@ import {
   updatePrismaData,
 } from '../../projects/project.service.ts'
 import { createPrismaData, type Candidate, type PrismaData } from '../../projects/types.ts'
-import { classifyCandidatesWithGemini } from '../../../services/ai.service.ts'
+import { classifyCandidatesWithCohere } from '../../../services/ai.service.ts'
 import { BrutalButton } from '../../../core/ui-kit/BrutalButton.tsx'
 import { BrutalCard } from '../../../core/ui-kit/BrutalCard.tsx'
 import { BrutalInput } from '../../../core/ui-kit/BrutalInput.tsx'
@@ -89,9 +89,9 @@ export const Phase3View = () => {
     setTableReady(false)
     setIsBatching(true)
     setProcessingIds(new Set(pendingCandidates.map((candidate) => candidate.id)))
-    setStatusMessage('Enviando candidatos a Gemini…')
+    setStatusMessage('Enviando candidatos a Cohere…')
     try {
-      const results = await classifyCandidatesWithGemini(pendingCandidates, project.phase1)
+      const results = await classifyCandidatesWithCohere(pendingCandidates, project.phase1)
       const pendingMap = new Map(pendingCandidates.map((candidate) => [candidate.id, candidate]))
       const updatedIds = new Set<string>()
       const now = Date.now()
@@ -134,7 +134,7 @@ export const Phase3View = () => {
       setStatusMessage('Cribado IA completado')
     } catch (error) {
       console.error('handleBatchScreening', error)
-      setStatusMessage('Error al clasificar con Gemini')
+      setStatusMessage('Error al clasificar con Cohere')
     } finally {
       setProcessingIds(new Set())
       setIsBatching(false)
