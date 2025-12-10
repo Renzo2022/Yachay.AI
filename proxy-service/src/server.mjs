@@ -111,6 +111,34 @@ const findFirstArray = (payload) => {
   return null;
 };
 
+const COHERE_CLASSIFICATION_SCHEMA = {
+  type: "json_schema",
+  json_schema: {
+    name: "phase3_classification",
+    schema: {
+      type: "object",
+      properties: {
+        results: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              classification: { type: "string", enum: ["INCLUIR", "EXCLUIR", "DUDA"] },
+              justification: { type: "string" },
+              subtopic: { type: "string" },
+            },
+            required: ["id", "classification", "justification"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["results"],
+      additionalProperties: false,
+    },
+  },
+};
+
 const buildClassificationPrompt = (criteria = {}, articles = []) => {
   const inclusion =
     Array.isArray(criteria.inclusionCriteria) && criteria.inclusionCriteria.length
@@ -138,15 +166,17 @@ ${inclusion}
 Criterios de exclusión:
 ${exclusion}
 
-Debes responder EXCLUSIVAMENTE en JSON válido con este formato:
-[
-  {
-    "id": "ID_DEL_ARTICULO",
-    "classification": "INCLUIR|EXCLUIR|DUDA",
-    "justification": "Razón corta citando criterios",
-    "subtopic": "Subtema sugerido"
-  }
-]
+Debes responder EXCLUSIVAMENTE en JSON válido que cumpla con este esquema:
+{
+  "results": [
+    {
+      "id": "ID_DEL_ARTICULO",
+      "classification": "INCLUIR|EXCLUIR|DUDA",
+      "justification": "Razón corta citando criterios",
+      "subtopic": "Subtema sugerido"
+    }
+  ]
+}
 
 AArtículos a clasificar:
 ${JSON.stringify(payload, null, 2)}
@@ -446,7 +476,7 @@ app.post("/cohere/classify", async (req, res) => {
         model: COHERE_MODEL,
         message: prompt,
         temperature: 0.2,
-        response_format: { type: "json_object" },
+        response_format: COHERE_CLASSIFICATION_SCHEMA,
       });
 
       const contentParts = response?.message?.content ?? [];
