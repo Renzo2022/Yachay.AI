@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "models/gemini-1.5-pro-latest";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "models/gemini-1.5-flash-latest";
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
