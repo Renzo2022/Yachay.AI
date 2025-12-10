@@ -435,9 +435,23 @@ app.post("/cohere/classify", async (req, res) => {
         response_format: { type: "json_object" },
       });
 
-      const text =
-        response?.message?.content?.map((part) => part?.text ?? "").join("\n").trim() ?? "";
-      const parsed = extractJsonArray(text);
+      const contentParts = response?.message?.content ?? [];
+      const jsonPart = contentParts.find((part) => part?.json);
+
+      let parsed = null;
+      if (jsonPart?.json) {
+        if (Array.isArray(jsonPart.json)) {
+          parsed = jsonPart.json;
+        } else if (Array.isArray(jsonPart.json?.results)) {
+          parsed = jsonPart.json.results;
+        }
+      }
+
+      if (!parsed) {
+        const fallbackText = contentParts.map((part) => part?.text ?? "").join("\n").trim();
+        parsed = extractJsonArray(fallbackText);
+      }
+
       if (!Array.isArray(parsed)) {
         throw new Error("Cohere devolvió un formato inesperado.");
       }
