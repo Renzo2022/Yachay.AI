@@ -57,7 +57,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const PROXY_BASE_URL = import.meta.env.VITE_PROXY_BASE_URL?.replace(/\/$/, '') ?? ''
 const hasProxy = Boolean(PROXY_BASE_URL)
-const RESULT_LIMIT = 8
+const RESULT_LIMIT = 100
 
 type ProxyListResponse = {
   items?: Array<Partial<ExternalPaper> & Record<string, unknown>>

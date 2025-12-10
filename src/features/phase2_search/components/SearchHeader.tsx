@@ -5,7 +5,9 @@ type SearchHeaderProps = {
   defaultQuestion: string
   selectedSources: ExternalSource[]
   onToggleSource: (source: ExternalSource) => void
-  onGenerateStrategies: () => void
+  onGenerateDerivation: () => void
+  onGenerateSubquestionKeywords: () => void
+  canGenerateSubquestionKeywords: boolean
   disabled?: boolean
 }
 
@@ -20,7 +22,9 @@ export const SearchHeader = ({
   defaultQuestion,
   selectedSources = [],
   onToggleSource,
-  onGenerateStrategies,
+  onGenerateDerivation,
+  onGenerateSubquestionKeywords,
+  canGenerateSubquestionKeywords,
   disabled,
 }: SearchHeaderProps) => {
   return (
@@ -61,10 +65,23 @@ export const SearchHeader = ({
         <BrutalButton
           variant="primary"
           className="flex-1"
-          onClick={onGenerateStrategies}
+          onClick={onGenerateDerivation}
           disabled={selectedSources.length === 0 || disabled}
         >
-          ✨ Generar Estrategias
+          ✨ Generar derivación de términos
+        </BrutalButton>
+        <BrutalButton
+          variant="secondary"
+          className="flex-1 bg-accent-secondary text-black"
+          onClick={onGenerateSubquestionKeywords}
+          disabled={selectedSources.length === 0 || disabled || !canGenerateSubquestionKeywords}
+          title={
+            !canGenerateSubquestionKeywords
+              ? 'Genera primero la derivación de términos para habilitar esta acción.'
+              : undefined
+          }
+        >
+          🔁 Generar keywords para subpreguntas
         </BrutalButton>
       </div>
     </section>

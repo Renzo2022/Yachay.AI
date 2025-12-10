@@ -20,6 +20,41 @@ const SOURCE_LABELS: Record<ExternalSource, string> = {
 }
 const INITIAL_YEAR_FILTERS = { from: 2010, to: new Date().getFullYear() }
 
+const sanitizeStrategy = (input: Phase2Strategy | null | undefined): Phase2Strategy | null => {
+  if (!input) return null
+  return {
+    question: input.question ?? '',
+    keywordMatrix: Array.isArray(input.keywordMatrix)
+      ? input.keywordMatrix.map((entry) => ({
+          component: entry?.component ?? 'P',
+          concept: entry?.concept ?? '',
+          terms: Array.isArray(entry?.terms)
+            ? entry.terms.map((term) => term?.toString().trim()).filter((term): term is string => Boolean(term))
+            : [],
+        }))
+      : [],
+    subquestionStrategies: Array.isArray(input.subquestionStrategies)
+      ? input.subquestionStrategies.map((block) => ({
+          subquestion: block?.subquestion ?? '',
+          keywords: Array.isArray(block?.keywords)
+            ? block.keywords.map((kw) => kw?.toString().trim()).filter((kw): kw is string => Boolean(kw))
+            : [],
+          databaseStrategies: Array.isArray(block?.databaseStrategies)
+            ? block.databaseStrategies.map((strategy) => ({
+                database: strategy?.database ?? 'Database',
+                query: strategy?.query ?? '',
+                filters: strategy?.filters ?? '',
+                estimatedResults: strategy?.estimatedResults ?? '',
+              }))
+            : [],
+        }))
+      : [],
+    recommendations: Array.isArray(input.recommendations)
+      ? input.recommendations.map((rec) => rec?.toString().trim()).filter((rec): rec is string => Boolean(rec))
+      : [],
+  }
+}
+
 type Phase2MetaState = {
   lastSearchAt: number | null
   lastSearchSubquestion: string | null
@@ -33,8 +68,9 @@ export const Phase2View = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [searchPerformed, setSearchPerformed] = useState(false)
-  const [strategy, setStrategy] = useState<Phase2Strategy | null>(project.phase2?.lastStrategy ?? null)
-  const [strategyLoading, setStrategyLoading] = useState(false)
+  const [strategy, setStrategy] = useState<Phase2Strategy | null>(sanitizeStrategy(project.phase2?.lastStrategy))
+  const [derivationLoading, setDerivationLoading] = useState(false)
+  const [subquestionLoading, setSubquestionLoading] = useState(false)
   const [strategyError, setStrategyError] = useState<string | null>(null)
   const [hiddenSubquestions, setHiddenSubquestions] = useState<Set<string>>(
     new Set(project.phase2?.hiddenSubquestions ?? []),
@@ -53,7 +89,7 @@ export const Phase2View = () => {
   })
 
   useEffect(() => {
-    setStrategy(project.phase2?.lastStrategy ?? null)
+    setStrategy(sanitizeStrategy(project.phase2?.lastStrategy))
     setHiddenSubquestions(new Set(project.phase2?.hiddenSubquestions ?? []))
     setSelectedSources(project.phase2?.selectedSources ?? ALL_SOURCES)
     setYearFilters(project.phase2?.yearFilters ?? INITIAL_YEAR_FILTERS)
@@ -69,7 +105,8 @@ export const Phase2View = () => {
     async (override: Partial<Phase2Data> = {}) => {
       try {
         const payload: Phase2Data = {
-          lastStrategy: override.lastStrategy !== undefined ? override.lastStrategy : strategy,
+          lastStrategy:
+            override.lastStrategy !== undefined ? sanitizeStrategy(override.lastStrategy) : sanitizeStrategy(strategy),
           hiddenSubquestions:
             override.hiddenSubquestions !== undefined
               ? [...override.hiddenSubquestions]
@@ -107,7 +144,7 @@ export const Phase2View = () => {
     })
   }
 
-  const handleGenerateStrategies = async () => {
+  const handleGenerateDerivation = async () => {
     if (selectedSources.length === 0) {
       showStatus('Selecciona al menos una base de datos para generar estrategias.')
       return
@@ -117,7 +154,7 @@ export const Phase2View = () => {
     setActiveSubquestion(null)
     setSelectedIds(new Set())
     setYearFilters(INITIAL_YEAR_FILTERS)
-    setStrategyLoading(true)
+    setDerivationLoading(true)
     setStrategyError(null)
     try {
       const payload = await generatePhase2Strategy(
@@ -136,7 +173,36 @@ export const Phase2View = () => {
       setStrategyError('No pudimos generar la estrategia. Intenta nuevamente.')
       persistPhase2State({ lastStrategy: null, hiddenSubquestions: [] })
     } finally {
-      setStrategyLoading(false)
+      setDerivationLoading(false)
+    }
+  }
+
+  const handleGenerateSubquestionKeywords = async () => {
+    if (selectedSources.length === 0) {
+      showStatus('Selecciona al menos una base antes de generar keywords.')
+      return
+    }
+    setSubquestionLoading(true)
+    setStrategyError(null)
+    try {
+      const payload = await generatePhase2Strategy(
+        project.phase1 ?? createPhase1Defaults(),
+        project.name,
+        selectedSources,
+      )
+      const nextStrategy: Phase2Strategy = strategy
+        ? { ...strategy, subquestionStrategies: payload.subquestionStrategies, recommendations: payload.recommendations }
+        : payload
+      const nextHidden = new Set<string>()
+      setStrategy(nextStrategy)
+      setHiddenSubquestions(nextHidden)
+      persistPhase2State({ lastStrategy: nextStrategy, hiddenSubquestions: Array.from(nextHidden) })
+      showStatus('Keywords por subpregunta regeneradas.')
+    } catch (error) {
+      console.error('handleGenerateSubquestionKeywords', error)
+      setStrategyError('No pudimos regenerar las keywords por subpregunta. Intenta nuevamente.')
+    } finally {
+      setSubquestionLoading(false)
     }
   }
 
@@ -302,8 +368,9 @@ export const Phase2View = () => {
             defaultQuestion={project.phase1?.mainQuestion ?? project.name}
             selectedSources={selectedSources}
             onToggleSource={handleToggleSource}
-            onGenerateStrategies={handleGenerateStrategies}
-            disabled={loading || strategyLoading}
+            onGenerateDerivation={handleGenerateDerivation}
+            onGenerateSubquestionKeywords={handleGenerateSubquestionKeywords}
+            disabled={loading || derivationLoading || subquestionLoading}
           />
         </div>
         <div className="w-full lg:w-80">
@@ -313,9 +380,14 @@ export const Phase2View = () => {
 
       <section className="space-y-6">
         <div className="space-y-6">
-          {strategyLoading ? (
+          {derivationLoading ? (
             <div className="border-4 border-black bg-neutral-100 shadow-brutal p-6 font-mono text-main">
-              ✨ Generando estrategia federada con tus datos de la Fase 1...
+              ✨ Generando derivación de términos con tus datos de la Fase 1...
+            </div>
+          ) : null}
+          {subquestionLoading ? (
+            <div className="border-4 border-black bg-neutral-100 shadow-brutal p-6 font-mono text-main">
+              🔁 Construyendo nuevas keywords para subpreguntas...
             </div>
           ) : null}
 
@@ -325,7 +397,7 @@ export const Phase2View = () => {
             </div>
           ) : null}
 
-          {strategy && !strategyLoading ? (
+          {strategy && !derivationLoading && !subquestionLoading ? (
             <StrategySummary
               strategy={strategy}
               subquestions={visibleSubquestions}

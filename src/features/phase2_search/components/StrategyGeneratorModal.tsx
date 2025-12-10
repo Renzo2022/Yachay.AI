@@ -216,11 +216,19 @@ export const StrategySummary = ({
                     {(block?.databaseStrategies ?? []).map((entry, dbIndex) => {
                       const database = entry?.database ?? 'Base sin nombre'
                       const query = entry?.query ?? 'Cadena no disponible'
-                      const filters = entry?.filters ?? DEFAULT_FILTERS
-                      const normalizedFilters = (filters ?? '')
+                      const filtersValue = entry?.filters as unknown
+                      let rawFilters: string
+                      if (Array.isArray(filtersValue)) {
+                        rawFilters = filtersValue.join(' · ')
+                      } else if (typeof filtersValue === 'string') {
+                        rawFilters = filtersValue
+                      } else {
+                        rawFilters = DEFAULT_FILTERS
+                      }
+                      const normalizedFilters = rawFilters
                         .split('·')
-                        .map((chunk) => chunk.trim())
-                        .filter((chunk) => chunk.length > 0 && !/^fecha/i.test(chunk))
+                        .map((chunk: string) => chunk.trim())
+                        .filter((chunk: string) => chunk.length > 0 && !/^fecha/i.test(chunk))
                         .join(' · ')
                       const displayFilters = normalizedFilters || DEFAULT_FILTERS
                       return (
