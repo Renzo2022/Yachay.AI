@@ -131,6 +131,7 @@ export const Phase3View = () => {
       }
 
       setTableReady(true)
+      setShowResultsTable(true)
       setStatusMessage('Cribado IA completado')
     } catch (error) {
       console.error('handleBatchScreening', error)
@@ -205,6 +206,13 @@ export const Phase3View = () => {
           {activeTab === 'ai' ? (
             <div className="space-y-6">
               <BrutalCard className="bg-neutral-100 space-y-6">
+                <header className="space-y-1">
+                  <p className="text-xs font-mono uppercase tracking-[0.4em] text-main">Fase 3 · Cribado</p>
+                  <h2 className="text-3xl font-black uppercase text-main">Valida y documenta exclusiones</h2>
+                  <p className="font-mono text-sm text-black">
+                    Revisa los títulos/resúmenes con IA y actualiza el diagrama PRISMA según los resultados.
+                  </p>
+                </header>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-xs font-mono uppercase tracking-[0.3em] text-accent-warning">
@@ -224,15 +232,14 @@ export const Phase3View = () => {
                     onClick={handleBatchScreening}
                     disabled={pendingCandidates.length === 0 || isBatching}
                   >
-                    🤖 Iniciar cribado IA
+                    🤖 Cribado Automático
                   </BrutalButton>
                   <BrutalButton
                     variant="secondary"
-                    className="flex-1 bg-neutral-900 text-text-main border-black disabled:opacity-60 disabled:cursor-not-allowed"
-                    onClick={() => setShowResultsTable(true)}
-                    disabled={!tableReady || isBatching}
+                    className="flex-1 bg-neutral-900 text-text-main border-black"
+                    onClick={() => setActiveTab('prisma')}
                   >
-                    📊 Generar tabla
+                    📊 Diagrama PRISMA
                   </BrutalButton>
                 </div>
               </BrutalCard>
