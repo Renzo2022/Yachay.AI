@@ -476,6 +476,10 @@ app.post("/cohere/classify", async (req, res) => {
         response_format: COHERE_CLASSIFICATION_SCHEMA,
       });
 
+      if (!response?.message?.content?.length) {
+        console.error("Respuesta Cohere cruda", JSON.stringify(response, null, 2));
+      }
+
       const contentParts = response?.message?.content ?? [];
       const jsonPart = contentParts.find((part) => part?.json);
       const textBlob = contentParts.map((part) => part?.text ?? "").join("\n").trim();
