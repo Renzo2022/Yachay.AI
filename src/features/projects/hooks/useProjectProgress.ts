@@ -23,7 +23,7 @@ import { useToast } from '../../../core/toast/ToastProvider.tsx'
 const PHASE_TASKS = {
   phase1: 5,
   phase2: 4,
-  phase3: 5,
+  phase3: 4,
   phase4: 3,
   phase5: 3,
   phase6: 3,
@@ -57,19 +57,15 @@ const computePhase2Completion = (phase2?: Phase2Data | null, candidates: Candida
 }
 
 const computePhase3Completion = (candidates: Candidate[], prisma: PrismaData | null): number => {
-  const total = PHASE_TASKS.phase3
-  const decisionRatio = candidates.length
-    ? candidates.filter((candidate) => Boolean(candidate.decision)).length / candidates.length
-    : 0
+  const dedupDone = Boolean(prisma) && prisma!.identified > 0 && prisma!.identified >= (prisma!.duplicates ?? 0)
+  const screeningDone = candidates.length > 0 && candidates.every((candidate) => candidate.userConfirmed)
+  const documentationDone = candidates
+    .filter((candidate) => candidate.decision === 'exclude')
+    .every((candidate) => Boolean(candidate.reason))
+  const prismaReady = Boolean(prisma) && prisma!.screened > 0 && prisma!.included >= 0
 
-  if (!prisma) {
-    return Math.min(total, Math.round(decisionRatio * total))
-  }
-
-  const screenedBase = Math.max(prisma.identified - prisma.duplicates, 1)
-  const prismaRatio = screenedBase > 0 ? prisma.screened / screenedBase : 0
-  const finalRatio = Math.max(prismaRatio, decisionRatio)
-  return Math.min(total, Math.round(finalRatio * total))
+  const steps = [dedupDone, screeningDone, documentationDone, prismaReady]
+  return steps.filter(Boolean).length
 }
 
 const computePhase4Completion = (quality: QualityAssessment[], included: Candidate[]): number => {

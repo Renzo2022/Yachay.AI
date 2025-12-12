@@ -18,6 +18,7 @@ const decisionStyles: Record<NonNullable<Candidate['decision']> | 'pending', { l
 export const ScreeningCard = ({ candidate, onConfirm, processing }: ScreeningCardProps) => {
   const decisionKey: NonNullable<Candidate['decision']> | 'pending' = candidate.decision ?? 'pending'
   const decision = decisionStyles[decisionKey]
+  const showActions = decisionKey === 'uncertain' || !candidate.userConfirmed
 
   return (
     <article
@@ -50,28 +51,27 @@ export const ScreeningCard = ({ candidate, onConfirm, processing }: ScreeningCar
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-3">
-        <BrutalButton
-          variant="secondary"
-          className="flex-1 bg-accent-success text-main border-black"
-          onClick={() => onConfirm('include')}
-          disabled={processing}
-        >
-          ✓ Confirmar
-        </BrutalButton>
-        <BrutalButton
-          variant="danger"
-          className="flex-1 bg-accent-danger text-text-main border-black"
-          onClick={() => onConfirm('exclude')}
-          disabled={processing}
-        >
-          ✕ Cambiar decisión
-        </BrutalButton>
-      </div>
-
-      {candidate.userConfirmed ? (
-        <p className="text-xs font-mono uppercase text-accent-secondary">Validado por humano</p>
+      {showActions ? (
+        <div className="flex flex-wrap gap-3">
+          <BrutalButton
+            variant="secondary"
+            className="flex-1 bg-accent-success text-main border-black"
+            onClick={() => onConfirm('include')}
+            disabled={processing}
+          >
+            ✓ Confirmar
+          </BrutalButton>
+          <BrutalButton
+            variant="danger"
+            className="flex-1 bg-accent-danger text-text-main border-black"
+            onClick={() => onConfirm('exclude')}
+            disabled={processing}
+          >
+            ✕ Cambiar decisión
+          </BrutalButton>
+        </div>
       ) : null}
+
     </article>
   )
 }

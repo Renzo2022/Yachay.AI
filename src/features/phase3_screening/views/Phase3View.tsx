@@ -26,6 +26,7 @@ export const Phase3View = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [checklistSlot, setChecklistSlot] = useState<HTMLElement | null>(null)
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const [prismaGenerated, setPrismaGenerated] = useState(false)
   const candidateRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
   const highlightTimeout = useRef<number | null>(null)
   const inclusionCriteria = useMemo(
@@ -82,6 +83,7 @@ export const Phase3View = () => {
     () => candidates.filter((candidate) => !candidate.userConfirmed),
     [candidates],
   )
+  const screeningComplete = pendingCandidates.length === 0 && candidates.length > 0
   const aiResults = useMemo(
     () =>
       candidates
@@ -108,15 +110,28 @@ export const Phase3View = () => {
       return true
     })
 
+  const canGeneratePrisma = duplicatesManaged && screeningComplete && exclusionsDocumented
   const checklistItems = useMemo(
     () => [
       { id: 'dedup', label: 'Eliminar duplicados', completed: duplicatesManaged },
-      { id: 'screening', label: 'Cribado inicial (título/resumen)', completed: pendingCandidates.length === 0 && candidates.length > 0 },
+      { id: 'screening', label: 'Cribado inicial (título/resumen)', completed: screeningComplete },
       { id: 'docs', label: 'Documentar exclusiones', completed: exclusionsDocumented },
-      { id: 'prisma', label: 'Crear diagrama PRISMA', completed: prismaData.screened > 0 && prismaData.included > 0 },
+      { id: 'prisma', label: 'Crear diagrama PRISMA', completed: prismaGenerated && canGeneratePrisma },
     ],
-    [duplicatesManaged, pendingCandidates.length, candidates.length, exclusionsDocumented, prismaData.screened, prismaData.included],
+    [duplicatesManaged, screeningComplete, exclusionsDocumented, prismaGenerated, canGeneratePrisma],
   )
+
+  useEffect(() => {
+    if (!canGeneratePrisma && activeTab === 'prisma') {
+      setActiveTab('ai')
+    }
+    if (activeTab === 'prisma' && canGeneratePrisma) {
+      setPrismaGenerated(true)
+    }
+    if (!canGeneratePrisma) {
+      setPrismaGenerated(false)
+    }
+  }, [activeTab, canGeneratePrisma])
 
   const handleBatchScreening = async () => {
     if (pendingCandidates.length === 0 || isBatching) return
@@ -145,19 +160,8 @@ export const Phase3View = () => {
 
           const shouldConfirm = entry.decision !== 'uncertain'
 
-          await updateCandidateRecord(project.id, entry.id, {
-            decision: entry.decision,
-            reason: entry.justification,
-            aiJustification: entry.justification,
-            aiSubtopic: entry.subtopic,
-            confidence: shouldConfirm ? 'medium' : 'low',
-            screeningStatus: 'screened',
-            processedAt: now,
-            userConfirmed: shouldConfirm ? true : target.userConfirmed ?? false,
-          })
-
           if (shouldConfirm) {
-            const enrichedCandidate: Candidate = {
+            const confirmedCandidate: Candidate = {
               ...target,
               decision: entry.decision,
               reason: entry.justification,
@@ -166,9 +170,29 @@ export const Phase3View = () => {
               confidence: 'medium',
               screeningStatus: 'screened',
               processedAt: now,
-              userConfirmed: true,
+              userConfirmed: false,
             }
-            await confirmCandidateDecision(project.id, enrichedCandidate, entry.decision)
+            await confirmCandidateDecision(project.id, confirmedCandidate, entry.decision)
+            await updateCandidateRecord(project.id, entry.id, {
+              reason: entry.justification,
+              aiJustification: entry.justification,
+              aiSubtopic: entry.subtopic ?? '—',
+              confidence: 'medium',
+              screeningStatus: 'screened',
+              processedAt: now,
+              userConfirmed: true,
+            })
+          } else {
+            await updateCandidateRecord(project.id, entry.id, {
+              decision: entry.decision,
+              reason: entry.justification,
+              aiJustification: entry.justification,
+              aiSubtopic: entry.subtopic,
+              confidence: 'low',
+              screeningStatus: 'screened',
+              processedAt: now,
+              userConfirmed: target.userConfirmed ?? false,
+            })
           }
         }),
       )
@@ -284,7 +308,7 @@ export const Phase3View = () => {
     <div className="space-y-6">
       {checklistPortal}
       {activeTab === 'ai' && <div className="max-w-6xl mx-auto">{aiOverviewCard}</div>}
-      <ScreeningTabs activeTab={activeTab} onChange={setActiveTab} />
+      <ScreeningTabs activeTab={activeTab} onChange={setActiveTab} disabledTabs={{ prisma: !canGeneratePrisma }} />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {[
           { label: 'Registros identificados', value: prismaData.identified },
@@ -391,14 +415,6 @@ export const Phase3View = () => {
       {statusMessage ? (
         <div className="fixed bottom-6 right-6 border-4 border-black bg-neutral-100 px-4 py-3 font-mono text-main shadow-brutal">
           {statusMessage}
-        </div>
-      ) : null}
-
-      {allConfirmed ? (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
-          <BrutalButton variant="primary" className="bg-accent-warning text-main border-black">
-            ➡ Finalizar Fase 3
-          </BrutalButton>
         </div>
       ) : null}
     </div>
