@@ -41,6 +41,7 @@ export const LandingPage = () => {
             {signingIn ? 'Conectando...' : 'INGRESAR CON GOOGLE'}
           </BrutalButton>
         </div>
+        <p className="text-lg font-mono max-w-2xl text-neutral-200">Basada en la investigación del Ing.Walter Cueva Chavez</p>
       </main>
 
       <footer className="border-t-4 border-white px-8 py-4 text-sm font-mono text-neutral-300">
