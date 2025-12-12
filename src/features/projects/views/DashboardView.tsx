@@ -44,6 +44,8 @@ export const DashboardView = () => {
         mainQuestion: payload.protocol.mainQuestion,
         subquestions: [],
         objectives: '',
+        coherenceAnalysis: '',
+        methodologicalJustification: '',
         pico: payload.protocol.pico,
         inclusionCriteria: payload.protocol.inclusionCriteria,
         exclusionCriteria: payload.protocol.exclusionCriteria,

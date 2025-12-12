@@ -8,18 +8,6 @@ interface ExportToolbarProps {
   projectName: string
 }
 
-const buildPlainText = (manuscript: Manuscript) => {
-  return [
-    `ABSTRACT\n${manuscript.abstract}`,
-    `INTRODUCTION\n${manuscript.introduction}`,
-    `METHODS\n${manuscript.methods}`,
-    `RESULTS\n${manuscript.results}`,
-    `DISCUSSION\n${manuscript.discussion}`,
-    `CONCLUSIONS\n${manuscript.conclusions}`,
-    `REFERENCES\n${manuscript.references.map((ref, idx) => `${idx + 1}. ${ref}`).join('\n')}`,
-  ].join('\n\n')
-}
-
 const downloadFile = (content: BlobPart, filename: string, type: string) => {
   const blob = new Blob([content], { type })
   const url = URL.createObjectURL(blob)

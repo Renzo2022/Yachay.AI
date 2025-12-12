@@ -49,8 +49,6 @@ export const createProject = async (userId: string, data: Partial<Project>) => {
     delete payload.templateUsed
   }
 
-const MISSING_ABSTRACT_PLACEHOLDER = 'Resumen no disponible para este registro.'
-
   await setDoc(projectDoc, payload)
   return project
 }

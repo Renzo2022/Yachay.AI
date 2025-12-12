@@ -5,6 +5,7 @@ import type { SynthesisTheme } from '../features/phase6_synthesis/types.ts'
 import type { SynthesisStats } from '../features/phase6_synthesis/analytics.ts'
 import type { AggregatedProjectData } from './project-aggregator.service.ts'
 import type { Manuscript } from '../features/phase7_report/types.ts'
+import type { CaspAnswer, ChecklistType, StudyType } from '../features/phase4_quality/types.ts'
 import { createEmptyManuscript } from '../features/phase7_report/types.ts'
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -16,7 +17,6 @@ const proxyPost = async <T>(path: string, body: unknown): Promise<T> => {
   if (!hasProxy) {
     throw new Error('Proxy base URL is not configured')
   }
-
   const response = await fetch(`${PROXY_BASE_URL}${path}`, {
     method: 'POST',
     headers: {
@@ -31,6 +31,102 @@ const proxyPost = async <T>(path: string, body: unknown): Promise<T> => {
   }
 
   return (await response.json()) as T
+}
+
+export type QualityAssessmentSuggestion = {
+  studyType?: StudyType
+  criteria: Array<{
+    id: string
+    answer?: CaspAnswer
+    evidence?: string
+    justification?: string
+  }>
+}
+
+export type QualityBatchSuggestionResponse = {
+  results: Array<{
+    studyId: string
+    studyType: StudyType
+    checklistType: ChecklistType
+    criteria: Array<{
+      id: string
+      answer: CaspAnswer
+      evidence?: string
+      justification?: string
+    }>
+  }>
+}
+
+export const batchSuggestQualityAssessments = async (input: {
+  studies: Array<{ id: string; title: string; abstract: string }>
+}): Promise<QualityBatchSuggestionResponse> => {
+  if (!hasProxy) {
+    await delay(800)
+    return {
+      results: input.studies.map((study) => ({
+        studyId: study.id,
+        studyType: 'Observational',
+        checklistType: 'STROBE',
+        criteria: [],
+      })),
+    }
+  }
+
+  return await proxyPost<QualityBatchSuggestionResponse>('/cohere/quality-batch', input)
+}
+
+export const suggestQualityAssessment = async (input: {
+  title: string
+  abstract: string
+  checklistType: ChecklistType
+  criteria: Array<{ id: string; question: string }>
+}): Promise<QualityAssessmentSuggestion> => {
+  if (!hasProxy) {
+    await delay(800)
+    return {
+      studyType: 'Observational',
+      criteria: input.criteria.map((criterion) => ({
+        id: criterion.id,
+        answer: 'Partial',
+        evidence: 'Evidencia no disponible sin proxy configurado.',
+        justification: 'Completa manualmente o configura el proxy para sugerencias automáticas.',
+      })),
+    }
+  }
+
+  try {
+    const response = await batchSuggestQualityAssessments({
+      studies: [
+        {
+          id: 'single',
+          title: input.title,
+          abstract: input.abstract,
+        },
+      ],
+    })
+
+    const first = response.results[0]
+    return {
+      studyType: first?.studyType ?? 'Observational',
+      criteria: (first?.criteria ?? []).map((criterion) => ({
+        id: criterion.id,
+        answer: criterion.answer,
+        evidence: criterion.evidence,
+        justification: criterion.justification,
+      })),
+    }
+  } catch (error) {
+    console.error('suggestQualityAssessment', error)
+    return {
+      studyType: 'Observational',
+      criteria: input.criteria.map((criterion) => ({
+        id: criterion.id,
+        answer: 'Partial',
+        evidence: 'No se pudo obtener sugerencia automática desde el proxy.',
+        justification: 'Completa manualmente o revisa la configuración del proxy / endpoint /cohere/quality-batch.',
+      })),
+    }
+  }
 }
 
 export type GeneratedProtocolPayload = {

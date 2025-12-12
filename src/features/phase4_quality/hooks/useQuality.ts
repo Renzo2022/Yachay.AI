@@ -3,6 +3,7 @@ import type { Candidate } from '../../projects/types.ts'
 import type {
   CaspCriterion,
   CaspAnswer,
+  ChecklistType,
   QualityAssessment,
   QualityLevel,
   StudyType,
@@ -13,16 +14,40 @@ import {
   saveQualityAssessment,
 } from '../../projects/project.service.ts'
 
-const questionBank = [
-  '¿La pregunta de investigación está claramente definida?',
-  '¿El diseño metodológico es apropiado para la pregunta?',
-  '¿La selección de participantes minimiza sesgos?',
-  '¿Las variables fueron medidas con precisión?',
-  '¿Se controlaron factores de confusión clave?',
-  '¿Los resultados son consistentes y aplicables?',
-  '¿Se evaluaron adecuadamente los riesgos/beneficios?',
-  '¿Las conclusiones están justificadas por los datos?',
-]
+const questionBank: Record<ChecklistType, string[]> = {
+  CASP: [
+    '¿La pregunta de investigación está claramente definida?',
+    '¿El diseño metodológico es apropiado para la pregunta?',
+    '¿La selección de participantes minimiza sesgos?',
+    '¿Las variables fueron medidas con precisión?',
+    '¿Se controlaron factores de confusión clave?',
+    '¿Los resultados son consistentes y aplicables?',
+    '¿Se evaluaron adecuadamente los riesgos/beneficios?',
+    '¿Las conclusiones están justificadas por los datos?',
+  ],
+  AMSTAR: [
+    '¿La pregunta de investigación está claramente definida?',
+    '¿El protocolo fue establecido antes del estudio?',
+    '¿La estrategia de búsqueda fue adecuada y reproducible?',
+    '¿La selección y extracción de estudios se hizo por duplicado?',
+    '¿Se evaluó el riesgo de sesgo de los estudios incluidos?',
+    '¿Se consideró el riesgo de sesgo al interpretar resultados?',
+    '¿Se evaluó la heterogeneidad y se explicó adecuadamente?',
+    '¿Se evaluó sesgo de publicación cuando fue pertinente?',
+    '¿Se declararon conflictos de interés y fuentes de financiamiento?',
+  ],
+  STROBE: [
+    '¿El diseño del estudio está claramente descrito?',
+    '¿La población y el contexto están claramente definidos?',
+    '¿Las variables de exposición y resultado están definidas?',
+    '¿Se describen métodos para minimizar sesgos?',
+    '¿El tamaño muestral está justificado?',
+    '¿Los métodos estadísticos son apropiados?',
+    '¿Se reportan los resultados principales con precisión?',
+    '¿Se discuten limitaciones del estudio?',
+    '¿Las conclusiones están sustentadas por los datos?',
+  ],
+}
 
 const answerScore: Record<CaspAnswer, number> = {
   Yes: 1,
@@ -30,12 +55,14 @@ const answerScore: Record<CaspAnswer, number> = {
   No: 0,
 }
 
-const createDefaultCriteria = (): CaspCriterion[] =>
-  questionBank.map((question, index) => ({
-    id: `casp-${index + 1}`,
+const createDefaultCriteria = (checklistType: ChecklistType): CaspCriterion[] =>
+  (questionBank[checklistType] ?? questionBank.CASP).map((question, index) => ({
+    id: `${checklistType.toLowerCase()}-${index + 1}`,
     question,
     answer: 'No',
     notes: '',
+    evidence: '',
+    justification: '',
   }))
 
 export const useQuality = (projectId: string) => {
@@ -49,7 +76,14 @@ export const useQuality = (projectId: string) => {
       setStudiesLoaded(true)
     })
 
-    const unsubscribeAssessments = listenToQualityAssessments(projectId, setAssessments)
+    const unsubscribeAssessments = listenToQualityAssessments(projectId, (items) => {
+      setAssessments(
+        items.map((assessment) => ({
+          ...assessment,
+          checklistType: assessment.checklistType ?? 'CASP',
+        })),
+      )
+    })
 
     return () => {
       unsubscribeStudies()
@@ -79,24 +113,28 @@ export const useQuality = (projectId: string) => {
     return Math.round(total * 10) / 10
   }
 
-  const determineLevel = (score: number): QualityLevel => {
-    if (score >= 6.5) return 'High'
-    if (score >= 4.5) return 'Medium'
+  const determineLevel = (score: number, maxScore: number): QualityLevel => {
+    const safeMax = maxScore > 0 ? maxScore : 1
+    const ratio = score / safeMax
+    if (ratio >= 0.8) return 'High'
+    if (ratio >= 0.55) return 'Medium'
     return 'Low'
   }
 
   const saveAssessment = async (input: {
     studyId: string
     studyType: StudyType
+    checklistType: ChecklistType
     criteria: CaspCriterion[]
     assessmentId?: string
   }) => {
     const totalScore = calculateScore(input.criteria)
-    const qualityLevel = determineLevel(totalScore)
+    const qualityLevel = determineLevel(totalScore, input.criteria.length)
     const assessment: QualityAssessment = {
       id: input.assessmentId ?? crypto.randomUUID(),
       studyId: input.studyId,
       studyType: input.studyType,
+      checklistType: input.checklistType,
       criteria: input.criteria,
       totalScore,
       qualityLevel,
@@ -127,4 +165,4 @@ export type QualityStats = {
   low: number
 }
 
-export const CASP_QUESTIONS = questionBank
+export const CASP_QUESTIONS = questionBank.CASP

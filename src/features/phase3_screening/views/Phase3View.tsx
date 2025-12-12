@@ -322,7 +322,7 @@ export const Phase3View = () => {
             className="border-3 border-black bg-neutral-100 px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rounded-none"
           >
             <p className="text-xs font-mono uppercase tracking-[0.2em] text-neutral-900">{stat.label}</p>
-            <p className="text-3xl font-black text-main">{stat.value}</p>
+            <p className="text-3xl font-black text-black">{stat.value}</p>
           </div>
         ))}
       </div>

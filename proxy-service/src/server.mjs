@@ -136,6 +136,91 @@ const COHERE_CLASSIFICATION_SCHEMA = {
   },
 };
 
+const QUALITY_QUESTION_BANK = {
+  CASP: [
+    "¿La pregunta de investigación está claramente definida?",
+    "¿El diseño metodológico es apropiado para la pregunta?",
+    "¿La selección de participantes minimiza sesgos?",
+    "¿Las variables fueron medidas con precisión?",
+    "¿Se controlaron factores de confusión clave?",
+    "¿Los resultados son consistentes y aplicables?",
+    "¿Se evaluaron adecuadamente los riesgos/beneficios?",
+    "¿Las conclusiones están justificadas por los datos?",
+  ],
+  AMSTAR: [
+    "¿La pregunta de investigación está claramente definida?",
+    "¿El protocolo fue establecido antes del estudio?",
+    "¿La estrategia de búsqueda fue adecuada y reproducible?",
+    "¿La selección y extracción de estudios se hizo por duplicado?",
+    "¿Se evaluó el riesgo de sesgo de los estudios incluidos?",
+    "¿Se consideró el riesgo de sesgo al interpretar resultados?",
+    "¿Se evaluó la heterogeneidad y se explicó adecuadamente?",
+    "¿Se evaluó sesgo de publicación cuando fue pertinente?",
+    "¿Se declararon conflictos de interés y fuentes de financiamiento?",
+  ],
+  STROBE: [
+    "¿El diseño del estudio está claramente descrito?",
+    "¿La población y el contexto están claramente definidos?",
+    "¿Las variables de exposición y resultado están definidas?",
+    "¿Se describen métodos para minimizar sesgos?",
+    "¿El tamaño muestral está justificado?",
+    "¿Los métodos estadísticos son apropiados?",
+    "¿Se reportan los resultados principales con precisión?",
+    "¿Se discuten limitaciones del estudio?",
+    "¿Las conclusiones están sustentadas por los datos?",
+  ],
+};
+
+const COHERE_QUALITY_SCHEMA = {
+  type: "json_object",
+  schema: {
+    type: "object",
+    properties: {
+      results: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            studyId: { type: "string" },
+            studyType: {
+              type: "string",
+              enum: [
+                "RCT",
+                "Quasi-experimental",
+                "Observational",
+                "Cohort",
+                "Case-control",
+                "Cross-sectional",
+                "Qualitative",
+                "Systematic Review",
+              ],
+            },
+            checklistType: { type: "string", enum: ["CASP", "AMSTAR", "STROBE"] },
+            criteria: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  answer: { type: "string", enum: ["Yes", "Partial", "No"] },
+                  evidence: { type: "string" },
+                  justification: { type: "string" },
+                },
+                required: ["id", "answer"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["studyId", "studyType", "checklistType", "criteria"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["results"],
+    additionalProperties: false,
+  },
+};
+
 const buildClassificationPrompt = (criteria = {}, articles = []) => {
   const inclusion =
     Array.isArray(criteria.inclusionCriteria) && criteria.inclusionCriteria.length
@@ -534,6 +619,127 @@ app.post("/cohere/classify", async (req, res) => {
     console.error("/cohere/classify", error);
     res.status(500).json({
       error: "Cohere classification failed",
+      details: error?.message ?? "Unknown Cohere error",
+    });
+  }
+});
+
+const buildQualityBatchPrompt = (studies = []) => {
+  const normalizedStudies = studies.map((study) => ({
+    studyId: study.id,
+    title: (study.title ?? "").toString(),
+    abstract: (study.abstract ?? "").toString(),
+  }));
+
+  const checklistPayload = {
+    CASP: QUALITY_QUESTION_BANK.CASP.map((question, index) => ({
+      id: `casp-${index + 1}`,
+      question,
+    })),
+    AMSTAR: QUALITY_QUESTION_BANK.AMSTAR.map((question, index) => ({
+      id: `amstar-${index + 1}`,
+      question,
+    })),
+    STROBE: QUALITY_QUESTION_BANK.STROBE.map((question, index) => ({
+      id: `strobe-${index + 1}`,
+      question,
+    })),
+  };
+
+  return `Eres un metodólogo experto en evaluación crítica de estudios.
+
+Usa SOLO el título y el resumen. No inventes datos; si no hay evidencia suficiente, usa answer='Partial' o 'No' y explica.
+
+Debes devolver EXCLUSIVAMENTE JSON válido siguiendo el esquema solicitado.
+
+Reglas:
+1) Elige studyType: RCT | Quasi-experimental | Observational | Cohort | Case-control | Cross-sectional | Qualitative | Systematic Review
+2) Elige checklistType: CASP | AMSTAR | STROBE
+   - Systematic Review => AMSTAR
+   - Observational/Cohort/Case-control/Cross-sectional => STROBE
+   - RCT/Quasi-experimental/Qualitative => CASP
+3) criteria debe contener EXACTAMENTE los criterios del checklist elegido (ids incluidos abajo), en el mismo orden.
+4) Para cada criterio: answer (Yes|Partial|No), evidence (cita textual breve), justification (breve explicación).
+
+Checklists disponibles (con ids):
+${JSON.stringify(checklistPayload, null, 2)}
+
+Estudios a evaluar:
+${JSON.stringify(normalizedStudies, null, 2)}
+`;
+};
+
+app.post("/cohere/quality-batch", async (req, res) => {
+  const { studies } = req.body ?? {};
+  if (!Array.isArray(studies) || studies.length === 0) {
+    res.status(400).json({ error: "Missing studies" });
+    return;
+  }
+
+  try {
+    const cohere = ensureCohere();
+    const batches = chunkArray(studies, 4);
+    const aggregated = [];
+
+    for (const batch of batches) {
+      const prompt = buildQualityBatchPrompt(batch);
+      const response = await cohere.chat({
+        model: COHERE_MODEL,
+        message: prompt,
+        temperature: 0.2,
+        response_format: COHERE_QUALITY_SCHEMA,
+      });
+
+      const contentParts = response?.message?.content ?? [];
+      const jsonPart = contentParts.find((part) => part?.json);
+      const textBlob =
+        contentParts.map((part) => part?.text ?? "").join("\n").trim() ||
+        response?.text ||
+        response?.message?.content?.[0]?.text ||
+        "";
+
+      const payload =
+        jsonPart?.json ??
+        (() => {
+          if (!textBlob) return null;
+          try {
+            return parseJsonSafe(textBlob);
+          } catch {
+            return null;
+          }
+        })();
+
+      const items =
+        (Array.isArray(payload?.results) && payload.results) ||
+        (Array.isArray(payload?.output) && payload.output) ||
+        (Array.isArray(payload?.data) && payload.data) ||
+        (Array.isArray(payload?.items) && payload.items) ||
+        findFirstArray(payload);
+
+      if (!items) {
+        console.error("Cohere quality payload sin resultados", JSON.stringify({ payload, textBlob }, null, 2));
+        throw new Error("Cohere devolvió un formato inesperado para quality-batch.");
+      }
+
+      items.forEach((entry) => {
+        const cast = entry ?? {};
+        if (!cast?.studyId || !cast?.checklistType || !cast?.studyType) {
+          return;
+        }
+        aggregated.push({
+          studyId: cast.studyId,
+          studyType: cast.studyType,
+          checklistType: cast.checklistType,
+          criteria: Array.isArray(cast.criteria) ? cast.criteria : [],
+        });
+      });
+    }
+
+    res.json({ results: aggregated });
+  } catch (error) {
+    console.error("/cohere/quality-batch", error);
+    res.status(500).json({
+      error: "Cohere quality-batch failed",
       details: error?.message ?? "Unknown Cohere error",
     });
   }

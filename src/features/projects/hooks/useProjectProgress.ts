@@ -70,9 +70,9 @@ const computePhase3Completion = (candidates: Candidate[], prisma: PrismaData | n
 
 const computePhase4Completion = (quality: QualityAssessment[], included: Candidate[]): number => {
   if (included.length === 0) return 0
-  const completed = quality.length
+  const completed = new Set(quality.map((assessment) => assessment.studyId)).size
   const ratio = completed / included.length
-  return Math.min(PHASE_TASKS.phase4, Math.round(ratio * PHASE_TASKS.phase4))
+  return Math.min(PHASE_TASKS.phase4, Math.floor(ratio * PHASE_TASKS.phase4))
 }
 
 const computePhase5Completion = (extractions: ExtractionData[], included: Candidate[]): number => {

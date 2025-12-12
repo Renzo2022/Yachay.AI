@@ -7,6 +7,12 @@ const levelStyles: Record<string, string> = {
   Low: 'bg-accent-primary text-white',
 }
 
+const levelLabel: Record<string, string> = {
+  High: 'Alta',
+  Medium: 'Media',
+  Low: 'Baja',
+}
+
 interface StudyListProps {
   studies: Candidate[]
   onEvaluate: (study: Candidate) => void
@@ -26,7 +32,8 @@ export const StudyList = ({ studies, onEvaluate, getAssessment }: StudyListProps
     <div className="space-y-4">
       {studies.map((study) => {
         const assessment = getAssessment(study.id)
-        const qualityScore = assessment ? `${assessment.totalScore}/8` : '—'
+        const maxScore = assessment?.criteria?.length ?? 0
+        const qualityScore = assessment ? `${assessment.totalScore}/${maxScore || '—'}` : '—'
 
         return (
           <div
@@ -48,18 +55,27 @@ export const StudyList = ({ studies, onEvaluate, getAssessment }: StudyListProps
                     levelStyles[assessment.qualityLevel]
                   }`}
                 >
-                  {assessment.qualityLevel} · {qualityScore}
+                  {(levelLabel[assessment.qualityLevel] ?? assessment.qualityLevel)} · {qualityScore}
                 </span>
                 <span className="text-xs font-mono text-neutral-600">Evaluado {new Date(assessment.assessedAt).toLocaleDateString()}</span>
+                <button
+                  type="button"
+                  onClick={() => onEvaluate(study)}
+                  className="inline-flex items-center justify-center gap-2 border-3 border-black bg-white text-black px-4 py-2 font-mono uppercase tracking-tight shadow-[4px_4px_0_0_#111] hover:-translate-y-1 hover:-translate-x-1 active:translate-x-0 active:translate-y-0"
+                >
+                  ✏️ Editar
+                </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => onEvaluate(study)}
-                className="inline-flex items-center gap-2 border-3 border-black bg-purple-500 text-white px-4 py-3 font-mono uppercase tracking-tight shadow-[4px_4px_0_0_#111] hover:-translate-y-1 hover:-translate-x-1 active:translate-x-0 active:translate-y-0"
-              >
-                ➕ Evaluar
-              </button>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => onEvaluate(study)}
+                  className="inline-flex items-center justify-center gap-2 border-3 border-black bg-purple-500 text-white px-4 py-3 font-mono uppercase tracking-tight shadow-[4px_4px_0_0_#111] hover:-translate-y-1 hover:-translate-x-1 active:translate-x-0 active:translate-y-0"
+                >
+                  ➕ Evaluar (Manual)
+                </button>
+              </div>
             )}
           </div>
         )
