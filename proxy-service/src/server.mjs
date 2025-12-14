@@ -200,6 +200,7 @@ const COHERE_EXTRACTION_SCHEMA = {
           year: { type: "number" },
           country: { type: "string" },
         },
+        required: ["country"],
         additionalProperties: false,
       },
       effect: {
