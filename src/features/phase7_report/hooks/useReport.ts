@@ -6,6 +6,7 @@ import { aggregateProjectData } from '../../../services/project-aggregator.servi
 import { generateFullManuscript } from '../../../services/ai.service.ts'
 import { prepareChartsData } from '../../phase6_synthesis/analytics.ts'
 import type { Candidate } from '../../projects/types.ts'
+import type { ExtractionData } from '../../phase5_extraction/types.ts'
 
 const PROGRESS_STEPS = [
   'Recopilando datos...',
@@ -31,9 +32,30 @@ const computeWordCount = (manuscript: Manuscript) => {
 export const useReport = (projectId: string) => {
   const [manuscript, setManuscript] = useState<Manuscript | null>(null)
   const [annexes, setAnnexes] = useState<AnnexesData | null>(null)
+  const [reportTitle, setReportTitle] = useState<string>('')
+  const [keywords, setKeywords] = useState<string[]>([])
+  const [matrixRows, setMatrixRows] = useState<Array<{ study: Candidate; extraction?: ExtractionData }>>([])
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState<{ step: number; label: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const buildReportTitle = useCallback((question: string) => {
+    const normalized = (question ?? '').trim()
+    const withoutMarks = normalized.replace(/[¿?]/g, '').trim()
+    const base = withoutMarks || 'Revisión sistemática'
+    return `${base}: Una revisión sistemática`
+  }, [])
+
+  const buildKeywords = useCallback((keywordMatrix: any) => {
+    const terms = Array.isArray(keywordMatrix)
+      ? keywordMatrix
+          .flatMap((entry) => (Array.isArray(entry?.terms) ? entry.terms : []))
+          .map((term) => String(term ?? '').trim())
+          .filter(Boolean)
+      : []
+    const unique = Array.from(new Set(terms))
+    return unique.slice(0, 10)
+  }, [])
 
   const buildApaReferences = useCallback((studies: Candidate[]) => {
     const formatAuthor = (raw: string) => {
@@ -93,12 +115,20 @@ export const useReport = (projectId: string) => {
   }, [projectId])
 
   useEffect(() => {
-    if (!projectId || !manuscript?.generatedAt) return
+    if (!projectId || !manuscript) return
 
     let cancelled = false
     ;(async () => {
       try {
         const aggregated = await aggregateProjectData(projectId)
+        const question = aggregated.phase1?.mainQuestion ?? ''
+        const derivedTitle = buildReportTitle(question)
+        if (!cancelled) setReportTitle(derivedTitle)
+
+        const keywordMatrix = (aggregated.project as any)?.phase2?.lastStrategy?.keywordMatrix
+        const derivedKeywords = buildKeywords(keywordMatrix)
+        if (!cancelled) setKeywords(derivedKeywords)
+
         const stats = prepareChartsData(aggregated.includedStudies, aggregated.extractionMatrix)
         const nextAnnexes: AnnexesData = {
           prisma: aggregated.prisma,
@@ -106,6 +136,16 @@ export const useReport = (projectId: string) => {
           byCountry: stats.byCountry,
         }
         if (!cancelled) setAnnexes(nextAnnexes)
+
+        const extractionByStudyId = new Map<string, ExtractionData>()
+        aggregated.extractionMatrix.forEach((entry) => {
+          if (entry?.studyId) extractionByStudyId.set(entry.studyId, entry)
+        })
+        const nextRows = aggregated.includedStudies.map((study) => ({
+          study,
+          extraction: extractionByStudyId.get(study.id),
+        }))
+        if (!cancelled) setMatrixRows(nextRows)
 
         const refs = manuscript.references ?? []
         const isDefaultPlaceholders =
@@ -120,13 +160,18 @@ export const useReport = (projectId: string) => {
         }
       } catch {
         if (!cancelled) setAnnexes(null)
+        if (!cancelled) {
+          setReportTitle('')
+          setKeywords([])
+          setMatrixRows([])
+        }
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [buildApaReferences, manuscript, projectId])
+  }, [buildApaReferences, buildKeywords, buildReportTitle, manuscript, projectId])
 
   const updateSection = useCallback(
     async (field: keyof Manuscript, value: Manuscript[keyof Manuscript]) => {
@@ -205,6 +250,9 @@ export const useReport = (projectId: string) => {
   return {
     manuscript,
     annexes,
+    reportTitle,
+    keywords,
+    matrixRows,
     generating,
     progress,
     progressPercent,

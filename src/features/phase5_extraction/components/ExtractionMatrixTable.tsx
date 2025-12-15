@@ -8,6 +8,7 @@ interface ExtractionMatrixRow {
 
 interface ExtractionMatrixTableProps {
   rows: ExtractionMatrixRow[]
+  variant?: 'default' | 'plain'
 }
 
 const statusColors: Record<ExtractionData['status'] | 'empty', string> = {
@@ -16,7 +17,7 @@ const statusColors: Record<ExtractionData['status'] | 'empty', string> = {
   verified: 'bg-green-300 text-black',
 }
 
-export const ExtractionMatrixTable = ({ rows }: ExtractionMatrixTableProps) => {
+export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionMatrixTableProps) => {
   if (!rows.length) {
     return (
       <div className="border-4 border-dashed border-black bg-white text-center py-12 font-mono text-sm">
@@ -25,10 +26,20 @@ export const ExtractionMatrixTable = ({ rows }: ExtractionMatrixTableProps) => {
     )
   }
 
+  const containerClass =
+    variant === 'plain'
+      ? 'bg-white overflow-auto'
+      : 'border-4 border-black bg-white shadow-[10px_10px_0_0_#111] overflow-auto'
+
+  const headerClass =
+    variant === 'plain'
+      ? 'bg-neutral-100 text-black'
+      : 'bg-[#FF005C] text-white sticky top-0'
+
   return (
-    <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] overflow-auto">
+    <div className={containerClass}>
       <table className="w-full border-collapse font-mono text-sm text-black">
-        <thead className="bg-[#FF005C] text-white sticky top-0">
+        <thead className={headerClass}>
           <tr>
             {[
               'Autor',

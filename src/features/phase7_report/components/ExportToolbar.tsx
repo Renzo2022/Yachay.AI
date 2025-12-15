@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { Document, HeadingLevel, Packer, Paragraph, TextRun, ImageRun } from 'docx'
+import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun, ImageRun } from 'docx'
+import type { IParagraphOptions } from 'docx'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
-import type { Manuscript, AnnexesData } from '../types.ts'
+import type { Manuscript } from '../types.ts'
 
 interface ExportToolbarProps {
   manuscript: Manuscript
   projectName: string
-  annexes?: AnnexesData | null
+  reportTitle: string
+  keywords?: string[]
+  matrixRowCount?: number
   onRegenerate?: () => Promise<void>
   regenerating?: boolean
 }
@@ -43,40 +46,29 @@ const dataUrlToUint8Array = (dataUrl: string) => {
   return bytes
 }
 
-export const ExportToolbar = ({ manuscript, projectName, annexes, onRegenerate, regenerating }: ExportToolbarProps) => {
+export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, matrixRowCount, onRegenerate, regenerating }: ExportToolbarProps) => {
   const [downloading, setDownloading] = useState(false)
 
   const safeName = projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
   const baseName = `${safeName || 'manuscrito'}`
 
+  const keywordsLine = (keywords ?? []).filter(Boolean).join(', ')
+
   const handleMarkdownExport = () => {
     const md = [
-      `# Abstract\n${manuscript.abstract}`,
-      `# Introduction\n${manuscript.introduction}`,
-      `# Methods\n${manuscript.methods}`,
-      `# Results\n${manuscript.results}`,
-      `# Discussion\n${manuscript.discussion}`,
-      `# Conclusions\n${manuscript.conclusions}`,
-      `# References\n${manuscript.references.map((ref, idx) => `${idx + 1}. ${ref}`).join('\n')}`,
-      annexes
-        ? [
-            `# Annexes`,
-            `## PRISMA 2020`,
-            `- Identificados: ${annexes.prisma.identified}`,
-            `- Duplicados: ${annexes.prisma.duplicates}`,
-            `- Sin resumen: ${annexes.prisma.withoutAbstract}`,
-            `- Cribados: ${annexes.prisma.screened}`,
-            `- Incluidos: ${annexes.prisma.included}`,
-            ``,
-            `## Distribución por año`,
-            ...(annexes.byYear.length ? annexes.byYear.map((row) => `- ${row.name}: ${row.count ?? 0}`) : ['- (Sin datos)']),
-            ``,
-            `## Distribución por país`,
-            ...(annexes.byCountry.length
-              ? annexes.byCountry.map((row) => `- ${row.name}: ${row.value ?? 0}`)
-              : ['- (Sin datos)']),
-          ].join('\n')
-        : '',
+      `# ${reportTitle || projectName}`,
+      `## Resumen\n${manuscript.abstract}`,
+      `**Palabras clave:** ${keywordsLine || '—'}`,
+      `## Introducción\n${manuscript.introduction}`,
+      `## Métodos\n${manuscript.methods}`,
+      `## Resultados\n${manuscript.results}`,
+      `### Figura 1. Diagrama PRISMA 2020\nFuente: Elaboración propia`,
+      `### Tabla 1. Matriz comparativa\nFuente: Elaboración propia`,
+      `### Figura 2. Distribución por año\nFuente: Elaboración propia`,
+      `### Figura 3. Distribución por país\nFuente: Elaboración propia`,
+      `## Discusión\n${manuscript.discussion}`,
+      `## Conclusiones\n${manuscript.conclusions}`,
+      `## Referencias\n${manuscript.references.map((ref, idx) => `${idx + 1}. ${ref}`).join('\n')}`,
     ].join('\n\n')
     downloadFile(md, `${baseName}.md`, 'text/markdown')
   }
@@ -84,30 +76,30 @@ export const ExportToolbar = ({ manuscript, projectName, annexes, onRegenerate, 
   const handleWordExport = async () => {
     setDownloading(true)
     try {
-      const annexImages = annexes
-        ? {
-            prisma: await captureElementPng('phase7-annex-prisma'),
-            byYear: await captureElementPng('phase7-annex-by-year'),
-            byCountry: await captureElementPng('phase7-annex-by-country'),
-          }
-        : null
+      const resultsImages = {
+        prisma: await captureElementPng('phase7-fig-prisma'),
+        byYear: await captureElementPng('phase7-fig-by-year'),
+        byCountry: await captureElementPng('phase7-fig-by-country'),
+        matrix: matrixRowCount ? await captureElementPng('phase7-table-matrix') : null,
+      }
 
       const sections = [
-        { title: 'Abstract', content: manuscript.abstract },
-        { title: 'Introduction', content: manuscript.introduction },
-        { title: 'Methods', content: manuscript.methods },
-        { title: 'Results', content: manuscript.results },
-        { title: 'Discussion', content: manuscript.discussion },
-        { title: 'Conclusions', content: manuscript.conclusions },
+        { title: 'Resumen', field: 'abstract' as const },
+        { title: 'Introducción', field: 'introduction' as const },
+        { title: 'Métodos', field: 'methods' as const },
+        { title: 'Resultados', field: 'results' as const },
+        { title: 'Discusión', field: 'discussion' as const },
+        { title: 'Conclusiones', field: 'conclusions' as const },
       ]
 
-      const toParagraphs = (content: string) =>
+      const toParagraphs = (content: string, alignment?: IParagraphOptions['alignment']) =>
         content
           .split(/\n{2,}/)
           .map((chunk) =>
             new Paragraph({
               children: [new TextRun(chunk)],
               spacing: { after: 200 },
+              alignment,
             }),
           )
 
@@ -130,24 +122,96 @@ export const ExportToolbar = ({ manuscript, projectName, annexes, onRegenerate, 
         ]
       }
 
+      const captionTitleParagraph = (label: string) =>
+        new Paragraph({
+          children: [new TextRun({ text: label, bold: true })],
+          spacing: { after: 80 },
+        })
+
+      const sourceParagraph = () =>
+        new Paragraph({
+          children: [new TextRun('Fuente: Elaboración propia')],
+          spacing: { after: 200 },
+        })
+
+      const buildResultsAssets = () => {
+        const children: Paragraph[] = []
+
+        children.push(captionTitleParagraph('Figura 1: Diagrama PRISMA 2020'))
+        children.push(...toImageParagraphs(resultsImages.prisma))
+        children.push(sourceParagraph())
+
+        children.push(captionTitleParagraph('Tabla 1: Matriz comparativa'))
+        if (resultsImages.matrix) {
+          children.push(...toImageParagraphs(resultsImages.matrix))
+        } else {
+          children.push(
+            new Paragraph({
+              children: [new TextRun('(Sin datos)')],
+              spacing: { after: 200 },
+            }),
+          )
+        }
+        children.push(sourceParagraph())
+
+        children.push(captionTitleParagraph('Figura 2: Distribución por año'))
+        children.push(...toImageParagraphs(resultsImages.byYear))
+        children.push(sourceParagraph())
+
+        children.push(captionTitleParagraph('Figura 3: Distribución por país'))
+        children.push(...toImageParagraphs(resultsImages.byCountry))
+        children.push(sourceParagraph())
+
+        return children
+      }
+
       const doc = new Document({
         sections: [
           {
             properties: {},
             children: [
               new Paragraph({
-                text: projectName,
+                text: reportTitle || projectName,
                 heading: HeadingLevel.TITLE,
+                alignment: AlignmentType.CENTER,
               }),
-              ...sections.flatMap((section) => [
-                new Paragraph({
-                  text: section.title,
-                  heading: HeadingLevel.HEADING_1,
-                }),
-                ...toParagraphs(section.content),
-              ]),
+              ...sections.flatMap((section) => {
+                const content = manuscript[section.field] as string
+                if (section.field === 'abstract') {
+                  return [
+                    new Paragraph({
+                      text: section.title,
+                      heading: HeadingLevel.HEADING_1,
+                    }),
+                    ...toParagraphs(content, AlignmentType.CENTER),
+                    new Paragraph({
+                      children: [new TextRun({ text: `Palabras clave: ${keywordsLine || '—'}` })],
+                      spacing: { after: 200 },
+                    }),
+                  ]
+                }
+
+                if (section.field === 'results') {
+                  return [
+                    new Paragraph({
+                      text: section.title,
+                      heading: HeadingLevel.HEADING_1,
+                    }),
+                    ...toParagraphs(content),
+                    ...buildResultsAssets(),
+                  ]
+                }
+
+                return [
+                  new Paragraph({
+                    text: section.title,
+                    heading: HeadingLevel.HEADING_1,
+                  }),
+                  ...toParagraphs(content),
+                ]
+              }),
               new Paragraph({
-                text: 'References',
+                text: 'Referencias',
                 heading: HeadingLevel.HEADING_1,
               }),
               ...manuscript.references.map(
@@ -157,65 +221,6 @@ export const ExportToolbar = ({ manuscript, projectName, annexes, onRegenerate, 
                     spacing: { after: 100 },
                   }),
               ),
-              ...(annexes
-                ? [
-                    new Paragraph({
-                      text: 'Annexes',
-                      heading: HeadingLevel.HEADING_1,
-                    }),
-                    new Paragraph({
-                      text: 'PRISMA 2020',
-                      heading: HeadingLevel.HEADING_2,
-                    }),
-                    ...(annexImages ? toImageParagraphs(annexImages.prisma) : []),
-                    new Paragraph({
-                      children: [
-                        new TextRun(
-                          `Identificados: ${annexes.prisma.identified} · Duplicados: ${annexes.prisma.duplicates} · Sin resumen: ${annexes.prisma.withoutAbstract} · Cribados: ${annexes.prisma.screened} · Incluidos: ${annexes.prisma.included}`,
-                        ),
-                      ],
-                      spacing: { after: 200 },
-                    }),
-                    new Paragraph({
-                      text: 'Distribución por año',
-                      heading: HeadingLevel.HEADING_2,
-                    }),
-                    ...(annexImages ? toImageParagraphs(annexImages.byYear) : []),
-                    ...(annexes.byYear.length
-                      ? annexes.byYear.map(
-                          (row) =>
-                            new Paragraph({
-                              children: [new TextRun(`- ${row.name}: ${row.count ?? 0}`)],
-                              spacing: { after: 80 },
-                            }),
-                        )
-                      : [
-                          new Paragraph({
-                            children: [new TextRun('- (Sin datos)')],
-                            spacing: { after: 80 },
-                          }),
-                        ]),
-                    new Paragraph({
-                      text: 'Distribución por país',
-                      heading: HeadingLevel.HEADING_2,
-                    }),
-                    ...(annexImages ? toImageParagraphs(annexImages.byCountry) : []),
-                    ...(annexes.byCountry.length
-                      ? annexes.byCountry.map(
-                          (row) =>
-                            new Paragraph({
-                              children: [new TextRun(`- ${row.name}: ${row.value ?? 0}`)],
-                              spacing: { after: 80 },
-                            }),
-                        )
-                      : [
-                          new Paragraph({
-                            children: [new TextRun('- (Sin datos)')],
-                            spacing: { after: 80 },
-                          }),
-                        ]),
-                  ]
-                : []),
             ],
           },
         ],
@@ -253,6 +258,15 @@ export const ExportToolbar = ({ manuscript, projectName, annexes, onRegenerate, 
       cursorY += 24
     }
 
+    const addCenteredHeading = (text: string) => {
+      ensureSpace(30)
+      pdf.setFont('Times', 'bold')
+      pdf.setFontSize(22)
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      pdf.text(text, pageWidth / 2, cursorY, { align: 'center' })
+      cursorY += 34
+    }
+
     const addParagraph = (text: string) => {
       pdf.setFont('Times', 'normal')
       pdf.setFontSize(12)
@@ -265,73 +279,83 @@ export const ExportToolbar = ({ manuscript, projectName, annexes, onRegenerate, 
       cursorY += 8
     }
 
-    pdf.setFont('Times', 'bold')
-    pdf.setFontSize(22)
-    pdf.text(projectName, marginX, cursorY)
-    cursorY += 30
+    const addCenteredParagraph = (text: string) => {
+      pdf.setFont('Times', 'normal')
+      pdf.setFontSize(12)
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const lines = pdf.splitTextToSize(text, maxWidth)
+      lines.forEach((line: string) => {
+        ensureSpace(16)
+        pdf.text(line, pageWidth / 2, cursorY, { align: 'center' })
+        cursorY += 16
+      })
+      cursorY += 8
+    }
+
+    const addImageFromElement = async (elementId: string) => {
+      const image = await captureElementPng(elementId)
+      if (!image?.dataUrl) return
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 40
+      const usableWidth = pageWidth - margin * 2
+      const ratio = image.height / image.width
+      const height = usableWidth * ratio
+      if (cursorY + height > 780) {
+        pdf.addPage()
+        cursorY = 60
+      }
+      pdf.addImage(image.dataUrl, 'PNG', margin, cursorY, usableWidth, height)
+      cursorY += height + 12
+    }
+
+    addCenteredHeading(reportTitle || projectName)
 
     const sections = [
-      { title: 'Abstract', content: manuscript.abstract },
-      { title: 'Introduction', content: manuscript.introduction },
-      { title: 'Methods', content: manuscript.methods },
-      { title: 'Results', content: manuscript.results },
-      { title: 'Discussion', content: manuscript.discussion },
-      { title: 'Conclusions', content: manuscript.conclusions },
+      { title: 'Resumen', field: 'abstract' as const },
+      { title: 'Introducción', field: 'introduction' as const },
+      { title: 'Métodos', field: 'methods' as const },
+      { title: 'Resultados', field: 'results' as const },
+      { title: 'Discusión', field: 'discussion' as const },
+      { title: 'Conclusiones', field: 'conclusions' as const },
     ]
 
-    sections.forEach((section) => {
+    for (const section of sections) {
+      const content = manuscript[section.field] as string
       addHeading(section.title)
-      section.content.split(/\n{2,}/).forEach((chunk) => addParagraph(chunk))
-    })
 
-    addHeading('References')
-    manuscript.references.forEach((reference, index) => addParagraph(`${index + 1}. ${reference}`))
-
-    if (annexes) {
-      addHeading('Annexes')
-      addHeading('PRISMA 2020')
-      const prismaImage = await captureElementPng('phase7-annex-prisma')
-      if (prismaImage?.dataUrl) {
-        pdf.addPage()
-        const pageWidth = pdf.internal.pageSize.getWidth()
-        const margin = 40
-        const usableWidth = pageWidth - margin * 2
-        const ratio = prismaImage.height / prismaImage.width
-        const height = usableWidth * ratio
-        pdf.addImage(prismaImage.dataUrl, 'PNG', margin, 80, usableWidth, height)
+      if (section.field === 'abstract') {
+        content.split(/\n{2,}/).forEach((chunk) => addCenteredParagraph(chunk))
+        addParagraph(`Palabras clave: ${keywordsLine || '—'}`)
+        continue
       }
-      addParagraph(
-        `Identificados: ${annexes.prisma.identified}. Duplicados: ${annexes.prisma.duplicates}. Sin resumen: ${annexes.prisma.withoutAbstract}. Cribados: ${annexes.prisma.screened}. Incluidos: ${annexes.prisma.included}.`,
-      )
 
-      addHeading('Distribución por año')
-      const byYearImage = await captureElementPng('phase7-annex-by-year')
-      if (byYearImage?.dataUrl) {
-        pdf.addPage()
-        const pageWidth = pdf.internal.pageSize.getWidth()
-        const margin = 40
-        const usableWidth = pageWidth - margin * 2
-        const ratio = byYearImage.height / byYearImage.width
-        const height = usableWidth * ratio
-        pdf.addImage(byYearImage.dataUrl, 'PNG', margin, 80, usableWidth, height)
-      }
-      if (annexes.byYear.length === 0) addParagraph('(Sin datos)')
-      annexes.byYear.forEach((row) => addParagraph(`- ${row.name}: ${row.count ?? 0}`))
+      content.split(/\n{2,}/).forEach((chunk) => addParagraph(chunk))
 
-      addHeading('Distribución por país')
-      const byCountryImage = await captureElementPng('phase7-annex-by-country')
-      if (byCountryImage?.dataUrl) {
-        pdf.addPage()
-        const pageWidth = pdf.internal.pageSize.getWidth()
-        const margin = 40
-        const usableWidth = pageWidth - margin * 2
-        const ratio = byCountryImage.height / byCountryImage.width
-        const height = usableWidth * ratio
-        pdf.addImage(byCountryImage.dataUrl, 'PNG', margin, 80, usableWidth, height)
+      if (section.field === 'results') {
+        addParagraph('Figura 1: Diagrama PRISMA 2020')
+        await addImageFromElement('phase7-fig-prisma')
+        addParagraph('Fuente: Elaboración propia')
+
+        addParagraph('Tabla 1: Matriz comparativa')
+        if (matrixRowCount) {
+          await addImageFromElement('phase7-table-matrix')
+        } else {
+          addParagraph('(Sin datos)')
+        }
+        addParagraph('Fuente: Elaboración propia')
+
+        addParagraph('Figura 2: Distribución por año')
+        await addImageFromElement('phase7-fig-by-year')
+        addParagraph('Fuente: Elaboración propia')
+
+        addParagraph('Figura 3: Distribución por país')
+        await addImageFromElement('phase7-fig-by-country')
+        addParagraph('Fuente: Elaboración propia')
       }
-      if (annexes.byCountry.length === 0) addParagraph('(Sin datos)')
-      annexes.byCountry.forEach((row) => addParagraph(`- ${row.name}: ${row.value ?? 0}`))
     }
+
+    addHeading('Referencias')
+    manuscript.references.forEach((reference, index) => addParagraph(`${index + 1}. ${reference}`))
 
     pdf.save(`${baseName}.pdf`)
   }

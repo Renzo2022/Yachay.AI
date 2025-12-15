@@ -517,10 +517,17 @@ Devuelve EXCLUSIVAMENTE JSON válido con el esquema EXACTO:
 Reglas:
 - No inventes datos, números, resultados ni referencias.
 - Mantén estilo formal y coherente.
+- Citas APA en el texto: cuando afirmes un hallazgo específico o compares resultados, agrega una cita en formato APA dentro del texto, por ejemplo (Apellido, 2021) o (Apellido et al., 2020). Usa SOLO autores/años presentes en includedStudies; si faltan autores usa un título abreviado + año.
+- NO incluyas una lista de referencias dentro del JSON (las referencias se generan localmente).
 - Abstract: 150–250 palabras.
 - Introduction: 250–400 palabras.
 - Methods: describe el proceso PRISMA, cribado, evaluación de calidad y extracción.
-- Results: resume PRISMA, características y hallazgos.
+- Results: resume PRISMA, características y hallazgos. Menciona que:
+  - Figura 1 corresponde al diagrama PRISMA.
+  - Tabla 1 corresponde a la matriz comparativa (extracción).
+  - Figura 2 corresponde a la distribución por año.
+  - Figura 3 corresponde a la distribución por país.
+  No crees una sección de anexos.
 - Discussion: interpreta, limitaciones y implicaciones.
 - Conclusions: 80–150 palabras.
 

@@ -25,6 +25,9 @@ export const Phase7View = () => {
   const {
     manuscript,
     annexes,
+    reportTitle,
+    keywords,
+    matrixRows,
     generating,
     progress,
     progressPercent,
@@ -53,10 +56,17 @@ export const Phase7View = () => {
         />
       ) : (
         <>
+          <div className="border-4 border-black bg-white shadow-[14px_14px_0_0_#111] p-6">
+            <h2 className="text-3xl font-black text-black text-center" style={{ fontFamily: '"Merriweather", serif' }}>
+              {reportTitle || project.name}
+            </h2>
+          </div>
           <ExportToolbar
             manuscript={manuscript as Manuscript}
             projectName={project.name}
-            annexes={annexes}
+            reportTitle={reportTitle || project.name}
+            keywords={keywords}
+            matrixRowCount={matrixRows.length}
             onRegenerate={async () => {
               await regenerateManuscript()
             }}
@@ -73,7 +83,13 @@ export const Phase7View = () => {
               <strong>Última generación:</strong> {manuscript ? new Date(manuscript.generatedAt).toLocaleString() : '—'}
             </span>
           </div>
-          <ManuscriptViewer manuscript={manuscript as Manuscript} onChange={updateSection} annexes={annexes} />
+          <ManuscriptViewer
+            manuscript={manuscript as Manuscript}
+            onChange={updateSection}
+            annexes={annexes}
+            keywords={keywords}
+            matrixRows={matrixRows}
+          />
         </>
       )}
 
