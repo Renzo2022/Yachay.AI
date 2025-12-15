@@ -1,3 +1,4 @@
+import type { Candidate } from '../projects/types.ts'
 import type { ExtractionData } from '../phase5_extraction/types.ts'
 
 export type ChartDatum = {
@@ -30,15 +31,17 @@ const normalizeCountry = (value?: string) => {
   return value.toUpperCase()
 }
 
-export const prepareChartsData = (matrix: ExtractionData[]): SynthesisStats => {
+export const prepareChartsData = (studies: Candidate[], matrix: ExtractionData[]): SynthesisStats => {
   const yearMap = new Map<string, number>()
   const countryMap = new Map<string, number>()
   const forest: ForestPlotDatum[] = []
 
-  matrix.forEach((entry) => {
-    const yearKey = normalizeYear(entry.context?.year)
+  studies.forEach((study) => {
+    const yearKey = normalizeYear(study.year)
     yearMap.set(yearKey, (yearMap.get(yearKey) ?? 0) + 1)
+  })
 
+  matrix.forEach((entry) => {
     const countryKey = normalizeCountry(entry.context?.country)
     countryMap.set(countryKey, (countryMap.get(countryKey) ?? 0) + 1)
 

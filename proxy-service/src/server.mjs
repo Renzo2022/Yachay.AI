@@ -136,6 +136,35 @@ const COHERE_CLASSIFICATION_SCHEMA = {
   },
 };
 
+const COHERE_SYNTHESIS_SCHEMA = {
+  type: "json_object",
+  schema: {
+    type: "object",
+    properties: {
+      themes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            theme: { type: "string" },
+            subtheme: { type: "string" },
+            studyCount: { type: "number" },
+            example: { type: "string" },
+            relatedStudies: { type: "array", items: { type: "string" } },
+          },
+          required: ["theme", "subtheme", "studyCount", "example", "relatedStudies"],
+          additionalProperties: false,
+        },
+      },
+      divergences: { type: "array", items: { type: "string" } },
+      gaps: { type: "array", items: { type: "string" } },
+      narrative: { type: "string" },
+    },
+    required: ["themes", "divergences", "gaps", "narrative"],
+    additionalProperties: false,
+  },
+};
+
 const COHERE_EXTRACTION_SCHEMA = {
   type: "json_object",
   schema: {
@@ -394,6 +423,105 @@ app.get("/unpaywall/resolve", async (req, res) => {
   } catch (error) {
     console.error("/unpaywall/resolve", error);
     res.status(500).json({ error: "Unpaywall resolve failed" });
+  }
+});
+
+app.post("/cohere/synthesis", async (req, res) => {
+  const studies = req.body?.studies;
+  if (!Array.isArray(studies) || studies.length === 0) {
+    res.status(400).json({ error: "Missing studies" });
+    return;
+  }
+
+  try {
+    const cohere = ensureCohere();
+
+    const compactStudies = studies.map((study) => {
+      const evidence = Array.isArray(study?.evidence) ? study.evidence.slice(0, 6) : [];
+      return {
+        id: String(study?.id ?? ""),
+        title: String(study?.title ?? "").slice(0, 220),
+        year: study?.year,
+        country: String(study?.country ?? "").slice(0, 80),
+        studyType: String(study?.studyType ?? "").slice(0, 80),
+        qualityLevel: String(study?.qualityLevel ?? "").slice(0, 40),
+        variables: Array.isArray(study?.variables) ? study.variables.slice(0, 12) : [],
+        results: String(study?.results ?? "").slice(0, 900),
+        conclusions: String(study?.conclusions ?? "").slice(0, 900),
+        evidence: evidence.map((row) => ({
+          variable: String(row?.variable ?? "").slice(0, 120),
+          extracted: String(row?.extracted ?? "").slice(0, 180),
+          quote: String(row?.quote ?? "").slice(0, 260),
+          page: row?.page,
+        })),
+      };
+    });
+
+    const prompt = `Eres un investigador experto en síntesis y análisis de revisiones.
+
+Recibirás una tabla de resultados (JSON) con datos extraídos de múltiples estudios.
+
+Objetivo:
+1) Identificar temas o categorías comunes.
+2) Identificar convergencias y divergencias.
+3) Detectar vacíos de evidencia.
+4) Detectar patrones generales (por método, contexto o resultado).
+
+Devuelve EXCLUSIVAMENTE JSON válido con el esquema EXACTO solicitado.
+
+Reglas:
+- themes: genera entre 5 y 12 filas si hay suficientes datos.
+- theme y subtheme: concisos (máx. 6 palabras cada uno).
+- studyCount: entero >= 1 y coherente con relatedStudies.length.
+- example: frase breve apoyada por evidencia (si puedes, incluye una cita textual corta entre comillas).
+- divergences: 2 a 8 ítems.
+- gaps: 2 a 8 ítems.
+- narrative: 200–300 palabras, español neutro, 1–2 párrafos.
+
+Tabla de resultados (JSON):
+${JSON.stringify(compactStudies)}`;
+
+    const response = await cohere.chat({
+      model: COHERE_MODEL,
+      message: prompt,
+      temperature: 0.2,
+      response_format: COHERE_SYNTHESIS_SCHEMA,
+    });
+
+    const contentParts = response?.message?.content ?? [];
+    const jsonPart = contentParts.find((part) => part?.json);
+    const textBlob =
+      contentParts.map((part) => part?.text ?? "").join("\n").trim() ||
+      response?.text ||
+      response?.message?.content?.[0]?.text ||
+      "";
+
+    const payload =
+      jsonPart?.json ??
+      (() => {
+        if (!textBlob) return null;
+        try {
+          return parseJsonSafe(textBlob);
+        } catch {
+          return null;
+        }
+      })();
+
+    if (!payload || typeof payload !== "object") {
+      console.error(
+        "Cohere synthesis payload inválido",
+        JSON.stringify({ payload, textBlob, sample: compactStudies.slice(0, 2) }, null, 2),
+      );
+      throw new Error("Cohere devolvió un formato inesperado para synthesis.");
+    }
+
+    res.json(payload);
+  } catch (error) {
+    console.error("/cohere/synthesis", error);
+    res.status(500).json({
+      error: "Cohere synthesis failed",
+      details: error?.message ?? "Unknown Cohere error",
+    });
   }
 });
 

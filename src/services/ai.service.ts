@@ -85,6 +85,66 @@ export const buildPdfProxyUrl = (rawPdfUrl: string) => {
   return `${PROXY_BASE_URL}/pdf/proxy?url=${encodeURIComponent(rawPdfUrl)}`
 }
 
+export type SynthesisGenerateInput = {
+  studies: Array<{
+    id: string
+    title: string
+    year?: number
+    authors?: string[]
+    country?: string
+    studyType?: string
+    qualityLevel?: string
+    variables?: string[]
+    results?: string
+    conclusions?: string
+    evidence?: Array<{ variable: string; extracted: string; quote: string; page?: number }>
+  }>
+}
+
+export type SynthesisGenerateResponse = {
+  themes: Array<{
+    theme: string
+    subtheme: string
+    studyCount: number
+    example: string
+    relatedStudies: string[]
+  }>
+  divergences: string[]
+  gaps: string[]
+  narrative: string
+}
+
+const SAMPLE_SYNTHESIS: SynthesisGenerateResponse = {
+  themes: [
+    {
+      theme: 'Personalización del aprendizaje',
+      subtheme: 'Tutoría adaptativa',
+      studyCount: 3,
+      example: 'Varios estudios reportan mejoras en retroalimentación y adaptación de contenidos usando IA.',
+      relatedStudies: [],
+    },
+  ],
+  divergences: ['Los efectos reportados difieren según el contexto institucional y el nivel de adopción tecnológica.'],
+  gaps: ['Falta evidencia longitudinal sobre impacto sostenido y resultados laborales.'],
+  narrative:
+    'Los estudios sintetizados sugieren que la IA en educación superior se asocia con mejoras en personalización y eficiencia docente, aunque los resultados varían por contexto. Se observan divergencias en la magnitud de efectos reportados y en las condiciones de implementación. Persisten vacíos en evidencia longitudinal y en poblaciones subrepresentadas. En conjunto, la tendencia apunta a beneficios potenciales cuando se acompaña de consideraciones éticas y soporte institucional.',
+}
+
+export const generateSynthesis = async (input: SynthesisGenerateInput): Promise<SynthesisGenerateResponse> => {
+  if (!hasProxy) {
+    await delay(1200)
+    return SAMPLE_SYNTHESIS
+  }
+
+  try {
+    return await proxyPost<SynthesisGenerateResponse>('/cohere/synthesis', input)
+  } catch (error) {
+    console.error('generateSynthesis error', error)
+    await delay(800)
+    return SAMPLE_SYNTHESIS
+  }
+}
+
 export type QualityAssessmentSuggestion = {
   studyType?: StudyType
   criteria: Array<{
@@ -441,7 +501,9 @@ export const generateNarrative = async (
   stats: SynthesisStats,
 ): Promise<string> => {
   const themeSummary =
-    themes.length > 0 ? themes.map((theme) => `${theme.title}: ${theme.description}`).join(' | ') : 'Sin temas definidos'
+    themes.length > 0
+      ? themes.map((theme) => `${theme.theme} / ${theme.subtheme}: ${theme.example}`).join(' | ')
+      : 'Sin temas definidos'
 
   const numericSummary = {
     years: stats.byYear.map((item) => `${item.name}: ${item.count ?? 0}`).join(', '),

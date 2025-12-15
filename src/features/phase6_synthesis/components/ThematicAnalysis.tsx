@@ -14,7 +14,13 @@ interface ThematicAnalysisProps {
 export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }: ThematicAnalysisProps) => {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Omit<SynthesisTheme, 'id'>>({ title: '', description: '', relatedStudies: [] })
+  const [draft, setDraft] = useState<Omit<SynthesisTheme, 'id'>>({
+    theme: '',
+    subtheme: '',
+    example: '',
+    studyCount: 0,
+    relatedStudies: [],
+  })
   const [saving, setSaving] = useState(false)
 
   const toggleStudy = (studyId: string) => {
@@ -28,17 +34,21 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
   }
 
   const resetDraft = () => {
-    setDraft({ title: '', description: '', relatedStudies: [] })
+    setDraft({ theme: '', subtheme: '', example: '', studyCount: 0, relatedStudies: [] })
     setEditingId(null)
   }
 
   const handleSubmit = async () => {
-    if (!draft.title.trim()) return
+    if (!draft.theme.trim()) return
     setSaving(true)
+    const normalized: Omit<SynthesisTheme, 'id'> = {
+      ...draft,
+      studyCount: draft.relatedStudies.length,
+    }
     if (editingId) {
-      await onUpdate({ ...draft, id: editingId })
+      await onUpdate({ ...normalized, id: editingId })
     } else {
-      await onAdd(draft)
+      await onAdd(normalized)
     }
     resetDraft()
     setSaving(false)
@@ -46,7 +56,13 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
   }
 
   const startEditing = (theme: SynthesisTheme) => {
-    setDraft({ title: theme.title, description: theme.description, relatedStudies: theme.relatedStudies })
+    setDraft({
+      theme: theme.theme,
+      subtheme: theme.subtheme,
+      example: theme.example,
+      studyCount: theme.studyCount,
+      relatedStudies: theme.relatedStudies,
+    })
     setEditingId(theme.id)
     setShowForm(true)
   }
@@ -68,16 +84,22 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
           <div className="mt-6 border-4 border-black bg-neutral-50 p-4 space-y-4">
             <input
               className="w-full border-3 border-black px-3 py-2 font-mono"
-              placeholder="Título del tema"
-              value={draft.title}
-              onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+              placeholder="Tema"
+              value={draft.theme}
+              onChange={(event) => setDraft((prev) => ({ ...prev, theme: event.target.value }))}
+            />
+            <input
+              className="w-full border-3 border-black px-3 py-2 font-mono"
+              placeholder="Subtema"
+              value={draft.subtheme}
+              onChange={(event) => setDraft((prev) => ({ ...prev, subtheme: event.target.value }))}
             />
             <textarea
               className="w-full border-3 border-black px-3 py-2 font-mono"
-              placeholder="Descripción"
+              placeholder="Ejemplo (usa evidencia textual si es posible)"
               rows={3}
-              value={draft.description}
-              onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
+              value={draft.example}
+              onChange={(event) => setDraft((prev) => ({ ...prev, example: event.target.value }))}
             />
             <div className="max-h-40 overflow-auto border-3 border-dashed border-black p-3 space-y-2">
               <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Estudios relacionados</p>
@@ -109,47 +131,53 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
         ) : null}
       </section>
 
-      <section className="grid md:grid-cols-2 gap-4">
+      <section className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 overflow-auto">
+        <header className="mb-4">
+          <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Tabla de temas</p>
+          <h3 className="text-2xl font-black">Tema | Subtema | Nº de estudios | Ejemplo</h3>
+        </header>
         {themes.length === 0 ? (
-          <p className="border-4 border-black bg-white shadow-[6px_6px_0_0_#111] p-4 font-mono text-sm text-neutral-600">
-            Aún no has agregado temas. Usa el botón superior para registrar patrones.
-          </p>
+          <p className="font-mono text-sm text-neutral-600">Aún no has agregado temas. Usa el botón superior para registrar patrones.</p>
         ) : (
-          themes.map((theme) => (
-            <article key={theme.id} className="border-4 border-black bg-white shadow-[6px_6px_0_0_#111] p-4 space-y-3">
-              <header className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Tema</p>
-                  <h4 className="text-xl font-black">{theme.title}</h4>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="border-3 border-black px-3 py-1 font-mono text-xs"
-                    onClick={() => startEditing(theme)}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    className="border-3 border-black px-3 py-1 font-mono text-xs bg-red-500 text-white"
-                    onClick={() => onDelete(theme.id)}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </header>
-              <p className="font-mono text-sm text-neutral-700">{theme.description}</p>
-              <div>
-                <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Estudios</p>
-                <ul className="list-disc pl-5 text-sm">
-                  {theme.relatedStudies.map((studyId) => (
-                    <li key={studyId}>{studies.find((study) => study.id === studyId)?.title ?? 'Estudio'}</li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          ))
+          <table className="w-full border-collapse text-black">
+            <thead>
+              <tr className="bg-black text-white">
+                <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Tema</th>
+                <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Subtema</th>
+                <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Nº de estudios</th>
+                <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Ejemplo</th>
+                <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {themes.map((theme) => (
+                <tr key={theme.id} className="bg-white">
+                  <td className="border-3 border-black px-3 py-2 font-mono text-sm">{theme.theme}</td>
+                  <td className="border-3 border-black px-3 py-2 font-mono text-sm">{theme.subtheme}</td>
+                  <td className="border-3 border-black px-3 py-2 font-mono text-sm">{theme.studyCount}</td>
+                  <td className="border-3 border-black px-3 py-2 font-mono text-sm">{theme.example}</td>
+                  <td className="border-3 border-black px-3 py-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="border-3 border-black px-3 py-1 font-mono text-xs"
+                        onClick={() => startEditing(theme)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="border-3 border-black px-3 py-1 font-mono text-xs bg-red-500 text-white"
+                        onClick={() => onDelete(theme.id)}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
     </div>

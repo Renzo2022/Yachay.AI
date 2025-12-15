@@ -89,8 +89,8 @@ const computePhase5Completion = (extractions: ExtractionData[], included: Candid
 const computePhase6Completion = (synthesis: SynthesisData): number => {
   const steps = [
     synthesis.themes.length > 0,
+    synthesis.divergences.some((item) => item.trim()) || synthesis.gaps.some((gap) => gap.trim()),
     Boolean(synthesis.narrative.trim()),
-    synthesis.gaps.some((gap) => gap.trim()),
   ]
   return steps.filter(Boolean).length
 }

@@ -18,13 +18,15 @@ export const Phase6View = () => {
     stats,
     themes,
     narrative,
+    divergences,
     gaps,
     addTheme,
     updateTheme,
     deleteTheme,
     updateNarrative,
+    updateDivergences,
     updateGaps,
-    generateNarrativeDraft,
+    generateSynthesisDraft,
     generating,
   } = useSynthesis(project.id)
 
@@ -86,10 +88,12 @@ export const Phase6View = () => {
       {activeTab === 'narrative' ? (
         <NarrativeEditor
           narrative={narrative}
+          divergences={divergences}
           gaps={gaps}
           onNarrativeChange={updateNarrative}
+          onDivergencesChange={updateDivergences}
           onGapsChange={updateGaps}
-          onGenerateDraft={generateNarrativeDraft}
+          onGenerateDraft={generateSynthesisDraft}
           generating={generating}
         />
       ) : null}
