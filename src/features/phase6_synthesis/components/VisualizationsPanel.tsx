@@ -25,7 +25,7 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
         <header className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Publicaciones</p>
-            <h3 className="text-2xl font-black">Distribución por año</h3>
+            <h3 className="text-2xl font-black text-neutral-900">Distribución por año</h3>
           </div>
           <div className="font-mono text-sm text-neutral-600">
             Selección actual: {selectedYear ?? 'Todas'} ({filteredStudies.length}/{studies.length})
@@ -47,7 +47,7 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
         <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 min-w-0">
           <header className="mb-4">
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Distribución geográfica</p>
-            <h3 className="text-2xl font-black">Países</h3>
+            <h3 className="text-2xl font-black text-neutral-900">Países</h3>
           </header>
           <div className="h-60 min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -60,12 +60,29 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
               </PieChart>
             </ResponsiveContainer>
           </div>
+
+          <div className="mt-4 space-y-2">
+            {stats.byCountry.map((entry, index) => {
+              const color = PIE_COLORS[index % PIE_COLORS.length]
+              return (
+                <div key={`legend-${entry.name}`} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-3 h-3 border-2 border-black" style={{ backgroundColor: color }} />
+                    <span className="font-mono text-xs uppercase tracking-wide truncate" style={{ color }}>
+                      {entry.name}
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs text-neutral-700">{entry.value ?? 0}</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6">
           <header className="mb-4">
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Forest Plot</p>
-            <h3 className="text-2xl font-black">Efectos agregados</h3>
+            <h3 className="text-2xl font-black text-neutral-900">Efectos agregados</h3>
           </header>
           <div className="h-60 overflow-auto">
             <svg width="100%" height={stats.forest.length * 40 + 40}>
@@ -79,7 +96,7 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
                     <line x1={minX} x2={minX + width} y1={0} y2={0} stroke="#111" strokeDasharray="4 4" />
                     <line x1={scale(item.lower)} x2={scale(item.upper)} y1={0} y2={0} stroke="#111" strokeWidth={3} />
                     <circle cx={scale(item.effect)} cy={0} r={6} fill="#F97316" stroke="#111" strokeWidth={2} />
-                    <text x={minX + width + 12} y={5} fontSize={12} fontFamily="JetBrains Mono">
+                    <text x={minX + width + 12} y={5} fontSize={12} fontFamily="JetBrains Mono" fill="#111">
                       {item.title}
                     </text>
                   </g>
@@ -93,7 +110,7 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
       <section className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6">
         <header className="mb-3">
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Estudios filtrados</p>
-          <h3 className="text-2xl font-black">Cohorte actual</h3>
+          <h3 className="text-2xl font-black text-neutral-900">Cohorte actual</h3>
         </header>
         {filteredStudies.length === 0 ? (
           <p className="font-mono text-sm text-neutral-600">No hay estudios para el filtro aplicado.</p>

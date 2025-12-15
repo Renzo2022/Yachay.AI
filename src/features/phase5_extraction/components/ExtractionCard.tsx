@@ -22,8 +22,8 @@ export const ExtractionCard = ({ study, extraction, onAutoExtract, onEdit, proce
   const [loading, setLoading] = useState(false)
   const [statusLabel, statusClass] = useMemo(() => {
     const level = extraction?.status ?? 'empty'
-    if (level === 'verified') return ['Calidad Verificada', statusStyles.verified]
-    if (level === 'extracted') return ['Datos extraídos', statusStyles.extracted]
+    if (level === 'verified') return ['Verificado', statusStyles.verified]
+    if (level === 'extracted') return ['Pendiente', statusStyles.extracted]
     return ['Pendiente', statusStyles.pending]
   }, [extraction])
 
@@ -59,6 +59,9 @@ export const ExtractionCard = ({ study, extraction, onAutoExtract, onEdit, proce
         <span className={`px-4 py-2 border-3 border-black font-mono text-sm uppercase tracking-tight ${statusClass}`}>
           {statusLabel}
         </span>
+        {extraction?.status === 'extracted' ? (
+          <span className="text-xs font-mono text-neutral-600 uppercase tracking-wide">Borrador IA</span>
+        ) : null}
         {extraction ? (
           <button
             type="button"

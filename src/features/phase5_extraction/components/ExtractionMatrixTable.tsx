@@ -60,6 +60,8 @@ export const ExtractionMatrixTable = ({ rows }: ExtractionMatrixTableProps) => {
             const results = extraction?.outcomes?.results?.trim() ? extraction.outcomes.results.trim() : '—'
             const conclusions = extraction?.conclusions?.trim() ? extraction.conclusions.trim() : '—'
             const evidenceLevel = study.qualityLevel ?? '—'
+
+            const statusLabel = statusKey === 'verified' ? 'Verificado' : 'Pendiente'
             return (
               <tr key={study.id} className="odd:bg-neutral-50">
                 <td className="border-2 border-black px-4 py-3">
@@ -78,7 +80,7 @@ export const ExtractionMatrixTable = ({ rows }: ExtractionMatrixTableProps) => {
                 <td className="border-2 border-black px-4 py-3">{evidenceLevel}</td>
                 <td className="border-2 border-black px-4 py-3">
                   <span className={`inline-flex items-center justify-center px-3 py-1 border-2 border-black text-xs uppercase tracking-wide ${statusColors[statusKey]}`}>
-                    {statusKey === 'empty' ? 'Pendiente' : statusKey}
+                    {statusLabel}
                   </span>
                 </td>
               </tr>

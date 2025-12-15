@@ -77,6 +77,8 @@ export const Phase5View = () => {
 
   const processingStudyId = ragState?.studyId
 
+  const pendingCount = Math.max(0, studies.length - stats.verified)
+
   return (
     <div className="space-y-6">
       <header className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 flex flex-wrap items-center justify-between gap-4">
@@ -91,7 +93,7 @@ export const Phase5View = () => {
           <div className="border-3 border-black px-4 py-3 bg-neutral-100">
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-500">Estado global</p>
             <p className="text-xl font-black text-neutral-900">
-              {stats.verified} verificados · {stats.extracted} en progreso · {stats.empty} pendientes
+              {stats.verified} verificados · {pendingCount} pendientes
             </p>
             {batchStatus ? <p className="text-xs font-mono text-neutral-600 mt-1">{batchStatus}</p> : null}
           </div>
