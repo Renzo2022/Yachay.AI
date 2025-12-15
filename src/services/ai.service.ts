@@ -547,11 +547,63 @@ const computeWordCountFromManuscript = (manuscript: Manuscript) => {
   return text.trim() ? text.trim().split(/\s+/).length : 0
 }
 
+const buildApaReferences = (studies: Candidate[]) => {
+  const formatAuthor = (raw: string) => {
+    const parts = raw
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .filter(Boolean)
+    if (parts.length === 0) return ''
+    if (parts.length === 1) return parts[0]
+    const lastName = parts[parts.length - 1]
+    const initials = parts
+      .slice(0, -1)
+      .map((token) => token.replace(/[^a-zA-Z]/g, ''))
+      .filter(Boolean)
+      .map((token) => `${token[0].toUpperCase()}.`)
+      .join(' ')
+    return `${lastName}, ${initials}`.trim()
+  }
+
+  const joinAuthors = (authors: string[]) => {
+    const normalized = (authors ?? []).map((name) => formatAuthor(name)).filter(Boolean)
+    if (normalized.length === 0) return ''
+    if (normalized.length === 1) return normalized[0]
+    if (normalized.length === 2) return `${normalized[0]}, & ${normalized[1]}`
+    return `${normalized.slice(0, -1).join(', ')}, & ${normalized[normalized.length - 1]}`
+  }
+
+  const toReference = (study: Candidate) => {
+    const title = (study.title ?? '').trim()
+    const year = study.year ? String(study.year) : 'n.d.'
+    const authors = joinAuthors(study.authors ?? [])
+    const doi = typeof study.doi === 'string' ? study.doi.trim() : ''
+    const url = typeof study.url === 'string' ? study.url.trim() : ''
+    const locator = doi ? `https://doi.org/${doi}` : url
+    if (!title) return ''
+    if (authors) return `${authors} (${year}). ${title}. ${locator}`.trim()
+    return `${title}. (${year}). ${locator}`.trim()
+  }
+
+  return (studies ?? [])
+    .slice()
+    .sort((a, b) => {
+      const aKey = `${(a.authors?.[0] ?? '').toLowerCase()}-${a.year ?? 0}-${a.title ?? ''}`
+      const bKey = `${(b.authors?.[0] ?? '').toLowerCase()}-${b.year ?? 0}-${b.title ?? ''}`
+      return aKey.localeCompare(bKey)
+    })
+    .map((study) => toReference(study))
+    .filter(Boolean)
+}
+
 const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectData): Manuscript => {
   const includedCount = aggregated?.includedStudies?.length ?? 0
   const prismaIdentified = aggregated?.prisma?.identified ?? 0
   const prismaIncluded = aggregated?.prisma?.included ?? includedCount
   const phase1Question = aggregated?.phase1?.mainQuestion ?? '¿Cuál es el efecto de las intervenciones basadas en IA en contextos educativos?'
+
+  const references = buildApaReferences(aggregated?.includedStudies ?? [])
 
   const manuscript = {
   ...createEmptyManuscript(projectId),
@@ -567,7 +619,7 @@ const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectDat
     'Los hallazgos respaldan la adopción de sistemas de evaluación automatizada, aunque la heterogeneidad metodológica limita la extrapolación completa. Se requieren estudios multicéntricos y comparaciones directas entre plataformas para comprender el rol de la personalización.',
   conclusions:
     'La evidencia converge en que las herramientas basadas en IA optimizan la retroalimentación y reducen tiempos de respuesta, siempre que exista acompañamiento pedagógico. Las futuras investigaciones deben priorizar poblaciones subrepresentadas y métricas de impacto sostenido.',
-  references: ['PRISMA 2020 Statement', 'CASP Qualitative Checklist'],
+  references,
   generatedAt: Date.now(),
   wordCount: 0,
   }

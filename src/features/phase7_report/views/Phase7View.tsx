@@ -22,7 +22,7 @@ const fireCelebration = () => {
 
 export const Phase7View = () => {
   const project = useProject()
-  const { manuscript, generating, progress, progressPercent, error, clearError, generateManuscript, updateSection } =
+  const { manuscript, annexes, generating, progress, progressPercent, error, clearError, generateManuscript, updateSection } =
     useReport(project.id)
 
   const handleGenerate = useCallback(async () => {
@@ -43,8 +43,8 @@ export const Phase7View = () => {
         />
       ) : (
         <>
-          <ExportToolbar manuscript={manuscript as Manuscript} projectName={project.name} />
-          <div className="border-4 border-black bg-white shadow-[14px_14px_0_0_#111] p-4 font-mono text-sm flex flex-wrap gap-4">
+          <ExportToolbar manuscript={manuscript as Manuscript} projectName={project.name} annexes={annexes} />
+          <div className="border-4 border-black bg-white shadow-[14px_14px_0_0_#111] p-4 font-mono text-sm flex flex-wrap gap-4 text-black">
             <span>
               <strong>Proyecto:</strong> {project.name}
             </span>
@@ -55,7 +55,7 @@ export const Phase7View = () => {
               <strong>Última generación:</strong> {manuscript ? new Date(manuscript.generatedAt).toLocaleString() : '—'}
             </span>
           </div>
-          <ManuscriptViewer manuscript={manuscript as Manuscript} onChange={updateSection} />
+          <ManuscriptViewer manuscript={manuscript as Manuscript} onChange={updateSection} annexes={annexes} />
         </>
       )}
 

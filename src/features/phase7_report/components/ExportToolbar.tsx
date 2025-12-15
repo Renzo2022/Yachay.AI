@@ -3,9 +3,22 @@ import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
 import { jsPDF } from 'jspdf'
 import type { Manuscript } from '../types.ts'
 
+type AnnexesExportData = {
+  prisma: {
+    identified: number
+    withoutAbstract: number
+    duplicates: number
+    screened: number
+    included: number
+  }
+  byYear: { name: string; count?: number }[]
+  byCountry: { name: string; value?: number }[]
+}
+
 interface ExportToolbarProps {
   manuscript: Manuscript
   projectName: string
+  annexes?: AnnexesExportData | null
 }
 
 const downloadFile = (content: BlobPart, filename: string, type: string) => {
@@ -18,7 +31,7 @@ const downloadFile = (content: BlobPart, filename: string, type: string) => {
   URL.revokeObjectURL(url)
 }
 
-export const ExportToolbar = ({ manuscript, projectName }: ExportToolbarProps) => {
+export const ExportToolbar = ({ manuscript, projectName, annexes }: ExportToolbarProps) => {
   const [downloading, setDownloading] = useState(false)
 
   const safeName = projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
@@ -33,6 +46,25 @@ export const ExportToolbar = ({ manuscript, projectName }: ExportToolbarProps) =
       `# Discussion\n${manuscript.discussion}`,
       `# Conclusions\n${manuscript.conclusions}`,
       `# References\n${manuscript.references.map((ref, idx) => `${idx + 1}. ${ref}`).join('\n')}`,
+      annexes
+        ? [
+            `# Annexes`,
+            `## PRISMA 2020`,
+            `- Identificados: ${annexes.prisma.identified}`,
+            `- Duplicados: ${annexes.prisma.duplicates}`,
+            `- Sin resumen: ${annexes.prisma.withoutAbstract}`,
+            `- Cribados: ${annexes.prisma.screened}`,
+            `- Incluidos: ${annexes.prisma.included}`,
+            ``,
+            `## Distribución por año`,
+            ...(annexes.byYear.length ? annexes.byYear.map((row) => `- ${row.name}: ${row.count ?? 0}`) : ['- (Sin datos)']),
+            ``,
+            `## Distribución por país`,
+            ...(annexes.byCountry.length
+              ? annexes.byCountry.map((row) => `- ${row.name}: ${row.value ?? 0}`)
+              : ['- (Sin datos)']),
+          ].join('\n')
+        : '',
     ].join('\n\n')
     downloadFile(md, `${baseName}.md`, 'text/markdown')
   }
@@ -86,6 +118,62 @@ export const ExportToolbar = ({ manuscript, projectName }: ExportToolbarProps) =
                     spacing: { after: 100 },
                   }),
               ),
+              ...(annexes
+                ? [
+                    new Paragraph({
+                      text: 'Annexes',
+                      heading: HeadingLevel.HEADING_1,
+                    }),
+                    new Paragraph({
+                      text: 'PRISMA 2020',
+                      heading: HeadingLevel.HEADING_2,
+                    }),
+                    new Paragraph({
+                      children: [
+                        new TextRun(
+                          `Identificados: ${annexes.prisma.identified} · Duplicados: ${annexes.prisma.duplicates} · Sin resumen: ${annexes.prisma.withoutAbstract} · Cribados: ${annexes.prisma.screened} · Incluidos: ${annexes.prisma.included}`,
+                        ),
+                      ],
+                      spacing: { after: 200 },
+                    }),
+                    new Paragraph({
+                      text: 'Distribución por año',
+                      heading: HeadingLevel.HEADING_2,
+                    }),
+                    ...(annexes.byYear.length
+                      ? annexes.byYear.map(
+                          (row) =>
+                            new Paragraph({
+                              children: [new TextRun(`- ${row.name}: ${row.count ?? 0}`)],
+                              spacing: { after: 80 },
+                            }),
+                        )
+                      : [
+                          new Paragraph({
+                            children: [new TextRun('- (Sin datos)')],
+                            spacing: { after: 80 },
+                          }),
+                        ]),
+                    new Paragraph({
+                      text: 'Distribución por país',
+                      heading: HeadingLevel.HEADING_2,
+                    }),
+                    ...(annexes.byCountry.length
+                      ? annexes.byCountry.map(
+                          (row) =>
+                            new Paragraph({
+                              children: [new TextRun(`- ${row.name}: ${row.value ?? 0}`)],
+                              spacing: { after: 80 },
+                            }),
+                        )
+                      : [
+                          new Paragraph({
+                            children: [new TextRun('- (Sin datos)')],
+                            spacing: { after: 80 },
+                          }),
+                        ]),
+                  ]
+                : []),
             ],
           },
         ],
@@ -157,11 +245,27 @@ export const ExportToolbar = ({ manuscript, projectName }: ExportToolbarProps) =
     addHeading('References')
     manuscript.references.forEach((reference, index) => addParagraph(`${index + 1}. ${reference}`))
 
+    if (annexes) {
+      addHeading('Annexes')
+      addHeading('PRISMA 2020')
+      addParagraph(
+        `Identificados: ${annexes.prisma.identified}. Duplicados: ${annexes.prisma.duplicates}. Sin resumen: ${annexes.prisma.withoutAbstract}. Cribados: ${annexes.prisma.screened}. Incluidos: ${annexes.prisma.included}.`,
+      )
+
+      addHeading('Distribución por año')
+      if (annexes.byYear.length === 0) addParagraph('(Sin datos)')
+      annexes.byYear.forEach((row) => addParagraph(`- ${row.name}: ${row.count ?? 0}`))
+
+      addHeading('Distribución por país')
+      if (annexes.byCountry.length === 0) addParagraph('(Sin datos)')
+      annexes.byCountry.forEach((row) => addParagraph(`- ${row.name}: ${row.value ?? 0}`))
+    }
+
     pdf.save(`${baseName}.pdf`)
   }
 
   return (
-    <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] px-4 py-3 flex flex-wrap gap-3 font-mono text-sm">
+    <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] px-4 py-3 flex flex-wrap gap-3 font-mono text-sm text-black">
       <button
         type="button"
         className="border-3 border-black px-4 py-2 bg-[#EF4444] text-white disabled:opacity-60"
@@ -170,10 +274,10 @@ export const ExportToolbar = ({ manuscript, projectName }: ExportToolbarProps) =
       >
         📥 Exportar a Word (.docx)
       </button>
-      <button type="button" className="border-3 border-black px-4 py-2 bg-white" onClick={handleMarkdownExport}>
+      <button type="button" className="border-3 border-black px-4 py-2 bg-white text-black" onClick={handleMarkdownExport}>
         📥 Exportar a Markdown (.md)
       </button>
-      <button type="button" className="border-3 border-black px-4 py-2 bg-white" onClick={handlePdfExport}>
+      <button type="button" className="border-3 border-black px-4 py-2 bg-white text-black" onClick={handlePdfExport}>
         📥 Exportar a PDF
       </button>
     </div>

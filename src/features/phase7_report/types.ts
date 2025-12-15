@@ -3,6 +3,18 @@ export interface ManuscriptSection {
   content: string
 }
 
+export type AnnexesData = {
+  prisma: {
+    identified: number
+    withoutAbstract: number
+    duplicates: number
+    screened: number
+    included: number
+  }
+  byYear: { name: string; count?: number }[]
+  byCountry: { name: string; value?: number }[]
+}
+
 export interface Manuscript {
   id: string
   projectId: string

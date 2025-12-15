@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Manuscript } from '../types.ts'
+import type { Manuscript, AnnexesData } from '../types.ts'
 import { createEmptyManuscript } from '../types.ts'
 import { listenToManuscript, saveManuscript } from '../../../services/manuscript.service.ts'
 import { aggregateProjectData } from '../../../services/project-aggregator.service.ts'
 import { generateFullManuscript } from '../../../services/ai.service.ts'
+import { prepareChartsData } from '../../phase6_synthesis/analytics.ts'
+import type { Candidate } from '../../projects/types.ts'
 
 const PROGRESS_STEPS = [
   'Recopilando datos...',
@@ -28,15 +30,103 @@ const computeWordCount = (manuscript: Manuscript) => {
 
 export const useReport = (projectId: string) => {
   const [manuscript, setManuscript] = useState<Manuscript | null>(null)
+  const [annexes, setAnnexes] = useState<AnnexesData | null>(null)
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState<{ step: number; label: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const buildApaReferences = useCallback((studies: Candidate[]) => {
+    const formatAuthor = (raw: string) => {
+      const parts = raw
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(' ')
+        .filter(Boolean)
+      if (parts.length === 0) return ''
+      if (parts.length === 1) return parts[0]
+      const lastName = parts[parts.length - 1]
+      const initials = parts
+        .slice(0, -1)
+        .map((token) => token.replace(/[^a-zA-Z]/g, ''))
+        .filter(Boolean)
+        .map((token) => `${token[0].toUpperCase()}.`)
+        .join(' ')
+      return `${lastName}, ${initials}`.trim()
+    }
+
+    const joinAuthors = (authors: string[]) => {
+      const normalized = (authors ?? []).map((name) => formatAuthor(name)).filter(Boolean)
+      if (normalized.length === 0) return ''
+      if (normalized.length === 1) return normalized[0]
+      if (normalized.length === 2) return `${normalized[0]}, & ${normalized[1]}`
+      return `${normalized.slice(0, -1).join(', ')}, & ${normalized[normalized.length - 1]}`
+    }
+
+    const toReference = (study: Candidate) => {
+      const title = (study.title ?? '').trim()
+      const year = study.year ? String(study.year) : 'n.d.'
+      const authors = joinAuthors(study.authors ?? [])
+      const doi = typeof study.doi === 'string' ? study.doi.trim() : ''
+      const url = typeof study.url === 'string' ? study.url.trim() : ''
+      const locator = doi ? `https://doi.org/${doi}` : url
+      if (!title) return ''
+      if (authors) return `${authors} (${year}). ${title}. ${locator}`.trim()
+      return `${title}. (${year}). ${locator}`.trim()
+    }
+
+    return (studies ?? [])
+      .slice()
+      .sort((a, b) => {
+        const aKey = `${(a.authors?.[0] ?? '').toLowerCase()}-${a.year ?? 0}-${a.title ?? ''}`
+        const bKey = `${(b.authors?.[0] ?? '').toLowerCase()}-${b.year ?? 0}-${b.title ?? ''}`
+        return aKey.localeCompare(bKey)
+      })
+      .map((study) => toReference(study))
+      .filter(Boolean)
+  }, [])
+
   useEffect(() => {
     if (!projectId) return
+
     const unsubscribe = listenToManuscript(projectId, (data) => setManuscript(data))
     return unsubscribe
   }, [projectId])
+
+  useEffect(() => {
+    if (!projectId || !manuscript?.generatedAt) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const aggregated = await aggregateProjectData(projectId)
+        const stats = prepareChartsData(aggregated.includedStudies, aggregated.extractionMatrix)
+        const nextAnnexes: AnnexesData = {
+          prisma: aggregated.prisma,
+          byYear: stats.byYear,
+          byCountry: stats.byCountry,
+        }
+        if (!cancelled) setAnnexes(nextAnnexes)
+
+        const refs = manuscript.references ?? []
+        const isDefaultPlaceholders =
+          refs.length === 2 &&
+          refs.includes('PRISMA 2020 Statement') &&
+          refs.includes('CASP Qualitative Checklist')
+        if (refs.length === 0 || isDefaultPlaceholders) {
+          const nextReferences = buildApaReferences(aggregated.includedStudies)
+          if (!cancelled && nextReferences.length) {
+            await saveManuscript(projectId, { ...manuscript, references: nextReferences })
+          }
+        }
+      } catch {
+        if (!cancelled) setAnnexes(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [buildApaReferences, manuscript, projectId])
 
   const updateSection = useCallback(
     async (field: keyof Manuscript, value: Manuscript[keyof Manuscript]) => {
@@ -86,6 +176,7 @@ export const useReport = (projectId: string) => {
 
   return {
     manuscript,
+    annexes,
     generating,
     progress,
     progressPercent,
