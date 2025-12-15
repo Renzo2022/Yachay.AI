@@ -5,7 +5,7 @@ import { createEmptyExtraction } from '../types.ts'
 import { listenToIncludedStudies, updateIncludedStudyRecord } from '../../projects/project.service.ts'
 import { listenToExtractionMatrix, saveExtractionEntry } from '../../../services/extraction.service.ts'
 import { buildRagContext, extractTextFromPdf, truncateText } from '../../../services/pdf.service.ts'
-import { buildPdfProxyUrl, extractDataRAG, resolveUnpaywallPdf } from '../../../services/ai.service.ts'
+import { buildPdfProxyUrl, extractDataRAG, resolveSemanticScholarPaper, resolveUnpaywallPdf } from '../../../services/ai.service.ts'
 import { useToast } from '../../../core/toast/ToastProvider.tsx'
 
 export const RAG_STEPS = ['Leyendo PDF...', 'Preparando contexto...', 'Consultando LLM...', 'Parseando JSON...']
@@ -98,17 +98,36 @@ export const useExtraction = (projectId: string) => {
 
         if (!pdfSource) {
           const doi = extractDoi()
-          if (!doi) {
-            throw new Error('No se encontró DOI ni PDF. Arrastra un PDF para continuar.')
+
+          if (doi) {
+            const resolved = await resolveUnpaywallPdf(doi)
+            if (resolved?.pdfUrl) {
+              await updateIncludedStudyRecord(projectId, study.id, { pdfUrl: resolved.pdfUrl })
+              pdfSource = buildPdfProxyUrl(resolved.pdfUrl)
+            }
           }
 
-          const resolved = await resolveUnpaywallPdf(doi)
-          if (!resolved?.pdfUrl) {
-            throw new Error('Unpaywall no encontró PDF Open Access. Arrastra un PDF manualmente para continuar.')
+          if (!pdfSource && study.source === 'semantic_scholar') {
+            const resolved = await resolveSemanticScholarPaper(study.id)
+            const pdfUrl = typeof resolved?.openAccessPdfUrl === 'string' ? resolved.openAccessPdfUrl.trim() : ''
+            if (pdfUrl && isLikelyPdfUrl(pdfUrl)) {
+              await updateIncludedStudyRecord(projectId, study.id, { pdfUrl })
+              pdfSource = buildPdfProxyUrl(pdfUrl)
+            } else {
+              const resolvedDoi = typeof resolved?.doi === 'string' ? resolved.doi.trim() : ''
+              if (resolvedDoi) {
+                const resolvedUnpaywall = await resolveUnpaywallPdf(resolvedDoi)
+                if (resolvedUnpaywall?.pdfUrl) {
+                  await updateIncludedStudyRecord(projectId, study.id, { pdfUrl: resolvedUnpaywall.pdfUrl })
+                  pdfSource = buildPdfProxyUrl(resolvedUnpaywall.pdfUrl)
+                }
+              }
+            }
           }
 
-          await updateIncludedStudyRecord(projectId, study.id, { pdfUrl: resolved.pdfUrl })
-          pdfSource = buildPdfProxyUrl(resolved.pdfUrl)
+          if (!pdfSource) {
+            throw new Error('No se encontró PDF Open Access. Arrastra un PDF manualmente para continuar.')
+          }
         }
 
         setError(null)

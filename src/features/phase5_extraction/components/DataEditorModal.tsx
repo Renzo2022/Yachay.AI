@@ -77,7 +77,7 @@ export const DataEditorModal = ({ open, study, extraction, preview, onClose, onS
             </p>
           </div>
 
-          <form className="bg-white p-6 space-y-4">
+          <form className="bg-white p-6 space-y-4 text-black">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Autor</label>

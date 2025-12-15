@@ -63,8 +63,20 @@ export type UnpaywallResolveResponse = {
   landingUrl: string | null
 }
 
+export type SemanticScholarPaperResolveResponse = {
+  paperId: string
+  openAccessPdfUrl: string | null
+  doi: string | null
+  url: string | null
+  isOpenAccess: boolean
+}
+
 export const resolveUnpaywallPdf = async (doi: string): Promise<UnpaywallResolveResponse> => {
   return await proxyGet<UnpaywallResolveResponse>('/unpaywall/resolve', { doi })
+}
+
+export const resolveSemanticScholarPaper = async (paperId: string): Promise<SemanticScholarPaperResolveResponse> => {
+  return await proxyGet<SemanticScholarPaperResolveResponse>('/semantic-scholar/paper', { paperId })
 }
 
 export const buildPdfProxyUrl = (rawPdfUrl: string) => {

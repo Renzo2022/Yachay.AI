@@ -1114,6 +1114,42 @@ app.get("/semantic-scholar/search", async (req, res) => {
   }
 });
 
+app.get("/semantic-scholar/paper", async (req, res) => {
+  const paperId = req.query.paperId?.toString();
+  if (!paperId) {
+    res.status(400).json({ error: "Missing paperId parameter" });
+    return;
+  }
+
+  try {
+    const url = new URL(`https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(paperId)}`);
+    url.searchParams.set("fields", "title,url,isOpenAccess,externalIds,openAccessPdf");
+
+    const response = await fetch(url, {
+      headers: process.env.SEMANTIC_SCHOLAR_API_KEY
+        ? { "x-api-key": process.env.SEMANTIC_SCHOLAR_API_KEY }
+        : undefined,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Semantic Scholar error: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    res.json({
+      paperId,
+      openAccessPdfUrl: data?.openAccessPdf?.url ?? null,
+      doi: data?.externalIds?.DOI ?? null,
+      url: data?.url ?? null,
+      isOpenAccess: Boolean(data?.isOpenAccess),
+    });
+  } catch (error) {
+    console.error("/semantic-scholar/paper", error);
+    res.status(500).json({ error: "Semantic Scholar request failed" });
+  }
+});
+
 app.get("/crossref/search", async (req, res) => {
   const query = req.query.q?.toString();
   const rows = Number(req.query.rows ?? 20);

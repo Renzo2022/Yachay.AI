@@ -27,7 +27,7 @@ export const ExtractionMatrixTable = ({ rows }: ExtractionMatrixTableProps) => {
 
   return (
     <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] overflow-auto">
-      <table className="w-full border-collapse font-mono text-sm">
+      <table className="w-full border-collapse font-mono text-sm text-black">
         <thead className="bg-[#FF005C] text-white sticky top-0">
           <tr>
             {[
