@@ -169,6 +169,34 @@ export const useReport = (projectId: string) => {
     }
   }, [projectId])
 
+  const regenerateManuscript = useCallback(async () => {
+    if (!projectId) return null
+    try {
+      setGenerating(true)
+      setError(null)
+      setProgress({ step: 0, label: PROGRESS_STEPS[0] })
+
+      const aggregated = await aggregateProjectData(projectId)
+
+      for (let index = 1; index < PROGRESS_STEPS.length; index += 1) {
+        setProgress({ step: index, label: PROGRESS_STEPS[index] })
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
+
+      const regenerated = await generateFullManuscript(projectId, aggregated)
+      await saveManuscript(projectId, regenerated)
+      setProgress({ step: PROGRESS_STEPS.length, label: 'Manuscrito regenerado' })
+      setTimeout(() => setProgress(null), 2000)
+      return regenerated
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo regenerar el manuscrito')
+      setProgress(null)
+      return null
+    } finally {
+      setGenerating(false)
+    }
+  }, [projectId])
+
   const progressPercent = useMemo(() => {
     if (!progress) return 0
     return Math.round(((progress.step + 1) / (PROGRESS_STEPS.length + 1)) * 100)
@@ -183,6 +211,7 @@ export const useReport = (projectId: string) => {
     error,
     clearError: () => setError(null),
     generateManuscript,
+    regenerateManuscript,
     updateSection,
   }
 }

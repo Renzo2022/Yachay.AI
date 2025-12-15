@@ -136,6 +136,23 @@ const COHERE_CLASSIFICATION_SCHEMA = {
   },
 };
 
+const COHERE_MANUSCRIPT_SCHEMA = {
+  type: "json_object",
+  schema: {
+    type: "object",
+    properties: {
+      abstract: { type: "string" },
+      introduction: { type: "string" },
+      methods: { type: "string" },
+      results: { type: "string" },
+      discussion: { type: "string" },
+      conclusions: { type: "string" },
+    },
+    required: ["abstract", "introduction", "methods", "results", "discussion", "conclusions"],
+    additionalProperties: false,
+  },
+};
+
 const COHERE_SYNTHESIS_SCHEMA = {
   type: "json_object",
   schema: {
@@ -425,6 +442,136 @@ app.get("/unpaywall/resolve", async (req, res) => {
     res.status(500).json({ error: "Unpaywall resolve failed" });
   }
 });
+
+const handleCohereManuscript = async (req, res) => {
+  const { projectId, aggregated } = req.body ?? {};
+  if (!projectId || !aggregated) {
+    res.status(400).json({ error: "Missing project data" });
+    return;
+  }
+
+  try {
+    const cohere = ensureCohere();
+
+    const includedStudies = Array.isArray(aggregated?.includedStudies) ? aggregated.includedStudies : [];
+    const extractionMatrix = Array.isArray(aggregated?.extractionMatrix) ? aggregated.extractionMatrix : [];
+    const synthesis = aggregated?.synthesis ?? {};
+    const prisma = aggregated?.prisma ?? {};
+    const phase1 = aggregated?.phase1 ?? {};
+
+    const matrixMap = new Map(
+      extractionMatrix
+        .filter((entry) => entry && typeof entry.studyId === "string")
+        .map((entry) => [entry.studyId, entry]),
+    );
+
+    const compactIncluded = includedStudies.slice(0, 60).map((study) => {
+      const entry = matrixMap.get(String(study?.id ?? ""));
+      const evidence = Array.isArray(entry?.evidence) ? entry.evidence.slice(0, 4) : [];
+      return {
+        id: String(study?.id ?? ""),
+        title: String(study?.title ?? "").slice(0, 240),
+        year: study?.year,
+        authors: Array.isArray(study?.authors) ? study.authors.slice(0, 8) : [],
+        doi: String(study?.doi ?? "").slice(0, 80),
+        url: String(study?.url ?? "").slice(0, 320),
+        studyType: String(study?.studyType ?? "").slice(0, 80),
+        qualityLevel: String(study?.qualityLevel ?? "").slice(0, 40),
+        country: String(entry?.context?.country ?? "").slice(0, 80),
+        variables: Array.isArray(entry?.variables) ? entry.variables.slice(0, 12) : [],
+        results: String(entry?.outcomes?.results ?? entry?.outcomes?.primary ?? "").slice(0, 900),
+        conclusions: String(entry?.conclusions ?? "").slice(0, 900),
+        evidence: evidence.map((row) => ({
+          variable: String(row?.variable ?? "").slice(0, 120),
+          extracted: String(row?.extracted ?? "").slice(0, 180),
+          quote: String(row?.quote ?? "").slice(0, 260),
+          page: row?.page,
+        })),
+      };
+    });
+
+    const compactPayload = {
+      phase1: {
+        mainQuestion: phase1?.mainQuestion,
+        inclusionCriteria: phase1?.inclusionCriteria,
+        exclusionCriteria: phase1?.exclusionCriteria,
+        pico: phase1?.pico,
+      },
+      prisma,
+      includedStudies: compactIncluded,
+      synthesis: {
+        narrative: synthesis?.narrative ?? "",
+        themes: Array.isArray(synthesis?.themes) ? synthesis.themes.slice(0, 12) : [],
+        divergences: Array.isArray(synthesis?.divergences) ? synthesis.divergences.slice(0, 8) : [],
+        gaps: Array.isArray(synthesis?.gaps) ? synthesis.gaps.slice(0, 8) : [],
+      },
+    };
+
+    const prompt = `Eres un redactor científico experto en PRISMA 2020.
+
+Debes redactar un manuscrito académico en español neutro usando EXCLUSIVAMENTE los datos entregados.
+
+Devuelve EXCLUSIVAMENTE JSON válido con el esquema EXACTO:
+{abstract,introduction,methods,results,discussion,conclusions}
+
+Reglas:
+- No inventes datos, números, resultados ni referencias.
+- Mantén estilo formal y coherente.
+- Abstract: 150–250 palabras.
+- Introduction: 250–400 palabras.
+- Methods: describe el proceso PRISMA, cribado, evaluación de calidad y extracción.
+- Results: resume PRISMA, características y hallazgos.
+- Discussion: interpreta, limitaciones y implicaciones.
+- Conclusions: 80–150 palabras.
+
+Datos del proyecto (JSON):
+${JSON.stringify(compactPayload)}`;
+
+    const response = await cohere.chat({
+      model: COHERE_MODEL,
+      message: prompt,
+      temperature: 0.2,
+      response_format: COHERE_MANUSCRIPT_SCHEMA,
+    });
+
+    const contentParts = response?.message?.content ?? [];
+    const jsonPart = contentParts.find((part) => part?.json);
+    const textBlob =
+      contentParts.map((part) => part?.text ?? "").join("\n").trim() ||
+      response?.text ||
+      response?.message?.content?.[0]?.text ||
+      "";
+
+    const payload =
+      jsonPart?.json ??
+      (() => {
+        if (!textBlob) return null;
+        try {
+          return parseJsonSafe(textBlob);
+        } catch {
+          return null;
+        }
+      })();
+
+    if (!payload || typeof payload !== "object") {
+      console.error(
+        "Cohere manuscript payload inválido",
+        JSON.stringify({ payload, textBlob, sample: compactIncluded.slice(0, 1) }, null, 2),
+      );
+      throw new Error("Cohere devolvió un formato inesperado para manuscript.");
+    }
+
+    res.json({ ...payload, generatedAt: Date.now(), projectId });
+  } catch (error) {
+    console.error("/cohere/manuscript", error);
+    res.status(500).json({
+      error: "Cohere manuscript failed",
+      details: error?.message ?? "Unknown Cohere error",
+    });
+  }
+};
+
+app.post("/cohere/manuscript", handleCohereManuscript);
 
 app.post("/cohere/synthesis", async (req, res) => {
   const studies = req.body?.studies;
@@ -803,43 +950,7 @@ Escribe una narrativa cohesiva en español neutro.`,
 });
 
 app.post("/groq/manuscript", async (req, res) => {
-  const { projectId, aggregated } = req.body ?? {};
-  if (!projectId || !aggregated) {
-    res.status(400).json({ error: "Missing project data" });
-    return;
-  }
-
-  try {
-    const groq = ensureGroq();
-    const response = await groq.chat.completions.create({
-      model: GROQ_MODEL,
-      temperature: 0.15,
-      max_tokens: 3072,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Eres un redactor científico PRISMA 2020. Responde en JSON válido con {abstract,introduction,methods,results,discussion,conclusions,references[]} (máx 6 referencias).",
-        },
-        {
-          role: "user",
-          content: `Genera el manuscrito para:
-${JSON.stringify(aggregated, null, 2)}`,
-        },
-      ],
-    });
-
-    const content = response.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty Groq response");
-    }
-
-    const manuscript = parseJsonSafe(content);
-    res.json({ ...manuscript, generatedAt: Date.now(), projectId });
-  } catch (error) {
-    console.error("/groq/manuscript", error);
-    res.status(500).json({ error: "Groq manuscript failed" });
-  }
+  await handleCohereManuscript(req, res);
 });
 
 app.post("/groq/search-strategy", async (req, res) => {

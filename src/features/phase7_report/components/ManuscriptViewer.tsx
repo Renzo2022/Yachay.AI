@@ -62,13 +62,13 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes }: ManuscriptVi
           <p className="font-mono text-sm text-neutral-600">Genera el manuscrito para ver PRISMA y gráficos en anexos.</p>
         ) : (
           <div className="space-y-6">
-            <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-5">
+            <div id="phase7-annex-prisma" className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-5">
               <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#EF4444] mb-4">PRISMA 2020</p>
               <PrismaDiagram data={annexes.prisma} />
             </div>
 
             <div className="grid lg:grid-cols-2 gap-6">
-              <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-5 min-w-0">
+              <div id="phase7-annex-by-year" className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-5 min-w-0">
                 <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#EF4444]">Gráfico</p>
                 <h4 className="text-xl font-black text-neutral-900 mt-1">Distribución por año</h4>
                 <div className="h-56 mt-4 min-w-0">
@@ -83,7 +83,7 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes }: ManuscriptVi
                 </div>
               </div>
 
-              <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-5 min-w-0">
+              <div id="phase7-annex-by-country" className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-5 min-w-0">
                 <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#EF4444]">Gráfico</p>
                 <h4 className="text-xl font-black text-neutral-900 mt-1">Distribución geográfica</h4>
                 <div className="h-56 mt-4 min-w-0">

@@ -637,8 +637,8 @@ export const generateFullManuscript = async (
   }
 
   try {
-    const response = await proxyPost<Partial<Manuscript> & { references?: string[]; generatedAt?: number }>(
-      '/groq/manuscript',
+    const response = await proxyPost<Partial<Manuscript> & { generatedAt?: number }>(
+      '/cohere/manuscript',
       {
         projectId,
         aggregated,
@@ -646,11 +646,12 @@ export const generateFullManuscript = async (
     )
 
     const base = createEmptyManuscript(projectId)
+    const references = buildApaReferences(aggregated?.includedStudies ?? [])
     const manuscript = {
       ...base,
       ...response,
       projectId,
-      references: response.references ?? [],
+      references,
       generatedAt: response.generatedAt ?? Date.now(),
     }
 
