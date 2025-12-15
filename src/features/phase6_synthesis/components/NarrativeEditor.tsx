@@ -94,14 +94,14 @@ export const NarrativeEditor = ({
         <header className="flex items-center justify-between mb-4">
           <div>
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Narrativa</p>
-            <h3 className="text-2xl font-black">Síntesis narrativa</h3>
+            <h3 className="text-2xl font-black text-neutral-900">Síntesis narrativa</h3>
           </div>
           <BrutalButton variant="primary" className="bg-[#F97316] text-white" onClick={onGenerateDraft} disabled={generating}>
             {generating ? 'Generando...' : '🤖 Generar síntesis con IA'}
           </BrutalButton>
         </header>
         <textarea
-          className="w-full min-h-[240px] border-4 border-black bg-neutral-50 p-4 font-mono text-sm"
+          className="w-full min-h-[240px] border-4 border-black bg-neutral-50 p-4 font-mono text-sm text-black placeholder:text-neutral-500"
           value={localNarrative}
           onChange={(event) => syncNarrative(event.target.value)}
           placeholder="Describe los hallazgos clave, patrones y vacíos..."
@@ -112,11 +112,11 @@ export const NarrativeEditor = ({
       <section className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 space-y-4">
         <header>
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Divergencias</p>
-          <h3 className="text-2xl font-black">Convergencias y divergencias</h3>
+          <h3 className="text-2xl font-black text-neutral-900">Convergencias y divergencias</h3>
         </header>
         <div className="flex gap-3">
           <input
-            className="flex-1 border-3 border-black px-3 py-2 font-mono"
+            className="flex-1 border-3 border-black px-3 py-2 font-mono text-black placeholder:text-neutral-500"
             placeholder="Ej. Resultados difieren según región o método"
             value={newDivergence}
             onChange={(event) => setNewDivergence(event.target.value)}
@@ -132,7 +132,7 @@ export const NarrativeEditor = ({
             localDivergences.map((item, index) => (
               <li key={`${item}-${index}`} className="flex items-center gap-3">
                 <input
-                  className="flex-1 border-3 border-black px-3 py-2 font-mono text-sm"
+                  className="flex-1 border-3 border-black px-3 py-2 font-mono text-sm text-black"
                   value={item}
                   onChange={(event) => updateDivergence(index, event.target.value)}
                 />
@@ -152,11 +152,11 @@ export const NarrativeEditor = ({
       <section className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 space-y-4">
         <header>
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Vacíos de evidencia</p>
-          <h3 className="text-2xl font-black">Gap analysis</h3>
+          <h3 className="text-2xl font-black text-neutral-900">Gap analysis</h3>
         </header>
         <div className="flex gap-3">
           <input
-            className="flex-1 border-3 border-black px-3 py-2 font-mono"
+            className="flex-1 border-3 border-black px-3 py-2 font-mono text-black placeholder:text-neutral-500"
             placeholder="Ej. Falta evidencia en contextos rurales"
             value={newGap}
             onChange={(event) => setNewGap(event.target.value)}
@@ -172,7 +172,7 @@ export const NarrativeEditor = ({
             localGaps.map((gap, index) => (
               <li key={`${gap}-${index}`} className="flex items-center gap-3">
                 <input
-                  className="flex-1 border-3 border-black px-3 py-2 font-mono text-sm"
+                  className="flex-1 border-3 border-black px-3 py-2 font-mono text-sm text-black"
                   value={gap}
                   onChange={(event) => updateGap(index, event.target.value)}
                 />

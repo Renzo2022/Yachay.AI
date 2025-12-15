@@ -73,7 +73,7 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Temas</p>
-            <h3 className="text-2xl font-black">Análisis temático</h3>
+            <h3 className="text-2xl font-black text-neutral-900">Análisis temático</h3>
           </div>
           <BrutalButton variant="primary" className="bg-[#F97316] text-white" onClick={() => setShowForm((prev) => !prev)}>
             {showForm ? 'Cerrar' : '➕ Agregar Tema'}
@@ -134,14 +134,14 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
       <section className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 overflow-auto">
         <header className="mb-4">
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Tabla de temas</p>
-          <h3 className="text-2xl font-black">Tema | Subtema | Nº de estudios | Ejemplo</h3>
+          <h3 className="text-2xl font-black text-neutral-900">Tema | Subtema | Nº de estudios | Ejemplo</h3>
         </header>
         {themes.length === 0 ? (
           <p className="font-mono text-sm text-neutral-600">Aún no has agregado temas. Usa el botón superior para registrar patrones.</p>
         ) : (
           <table className="w-full border-collapse text-black">
             <thead>
-              <tr className="bg-black text-white">
+              <tr className="bg-neutral-100 text-black">
                 <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Tema</th>
                 <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Subtema</th>
                 <th className="border-3 border-black px-3 py-2 text-left font-mono text-xs uppercase">Nº de estudios</th>
