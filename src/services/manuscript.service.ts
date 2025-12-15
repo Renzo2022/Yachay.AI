@@ -14,7 +14,9 @@ export const listenToManuscript = (projectId: string, callback: (manuscript: Man
       callback(null)
       return
     }
-    callback(snapshot.data() as Manuscript)
+    const raw = snapshot.data() as Partial<Manuscript>
+    const base = createEmptyManuscript(projectId)
+    callback({ ...base, ...raw, projectId })
   })
 }
 

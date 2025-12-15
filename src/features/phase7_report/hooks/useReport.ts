@@ -122,7 +122,7 @@ export const useReport = (projectId: string) => {
       try {
         const aggregated = await aggregateProjectData(projectId)
         const question = aggregated.phase1?.mainQuestion ?? ''
-        const derivedTitle = buildReportTitle(question)
+        const derivedTitle = manuscript.title?.trim() ? manuscript.title.trim() : buildReportTitle(question)
         if (!cancelled) setReportTitle(derivedTitle)
 
         const keywordMatrix = (aggregated.project as any)?.phase2?.lastStrategy?.keywordMatrix

@@ -141,6 +141,7 @@ const COHERE_MANUSCRIPT_SCHEMA = {
   schema: {
     type: "object",
     properties: {
+      title: { type: "string" },
       abstract: { type: "string" },
       introduction: { type: "string" },
       methods: { type: "string" },
@@ -148,7 +149,7 @@ const COHERE_MANUSCRIPT_SCHEMA = {
       discussion: { type: "string" },
       conclusions: { type: "string" },
     },
-    required: ["abstract", "introduction", "methods", "results", "discussion", "conclusions"],
+    required: ["title", "abstract", "introduction", "methods", "results", "discussion", "conclusions"],
     additionalProperties: false,
   },
 };
@@ -490,6 +491,28 @@ const handleCohereManuscript = async (req, res) => {
       };
     });
 
+    const byYearMap = new Map();
+    includedStudies.forEach((study) => {
+      const year = Number(study?.year);
+      if (!Number.isFinite(year)) return;
+      byYearMap.set(year, (byYearMap.get(year) ?? 0) + 1);
+    });
+    const byYear = Array.from(byYearMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, count]) => ({ year, count }));
+
+    const byCountryMap = new Map();
+    extractionMatrix.forEach((entry) => {
+      const raw = String(entry?.context?.country ?? "").trim();
+      if (!raw) return;
+      const key = raw;
+      byCountryMap.set(key, (byCountryMap.get(key) ?? 0) + 1);
+    });
+    const byCountry = Array.from(byCountryMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([country, count]) => ({ country, count }));
+
     const compactPayload = {
       phase1: {
         mainQuestion: phase1?.mainQuestion,
@@ -498,6 +521,10 @@ const handleCohereManuscript = async (req, res) => {
         pico: phase1?.pico,
       },
       prisma,
+      figures: {
+        byYear,
+        byCountry,
+      },
       includedStudies: compactIncluded,
       synthesis: {
         narrative: synthesis?.narrative ?? "",
@@ -512,21 +539,22 @@ const handleCohereManuscript = async (req, res) => {
 Debes redactar un manuscrito académico en español neutro usando EXCLUSIVAMENTE los datos entregados.
 
 Devuelve EXCLUSIVAMENTE JSON válido con el esquema EXACTO:
-{abstract,introduction,methods,results,discussion,conclusions}
+{title,abstract,introduction,methods,results,discussion,conclusions}
 
 Reglas:
 - No inventes datos, números, resultados ni referencias.
 - Mantén estilo formal y coherente.
+- title: convierte la pregunta principal en un título académico (sin signos ¿?), máximo 18 palabras, y agrega el subtítulo ": Una revisión sistemática".
 - Citas APA en el texto: cuando afirmes un hallazgo específico o compares resultados, agrega una cita en formato APA dentro del texto, por ejemplo (Apellido, 2021) o (Apellido et al., 2020). Usa SOLO autores/años presentes en includedStudies; si faltan autores usa un título abreviado + año.
 - NO incluyas una lista de referencias dentro del JSON (las referencias se generan localmente).
 - Abstract: 150–250 palabras.
 - Introduction: 250–400 palabras.
 - Methods: describe el proceso PRISMA, cribado, evaluación de calidad y extracción.
-- Results: resume PRISMA, características y hallazgos. Menciona que:
-  - Figura 1 corresponde al diagrama PRISMA.
-  - Tabla 1 corresponde a la matriz comparativa (extracción).
-  - Figura 2 corresponde a la distribución por año.
-  - Figura 3 corresponde a la distribución por país.
+- Results: resume PRISMA, características y hallazgos. Debe contener al menos 4 párrafos/campos claramente identificables en el texto:
+  1) "En la Figura 1..." describiendo PRISMA con los conteos (identified, duplicates, withoutAbstract, screened, included).
+  2) "En la Tabla 1..." describiendo qué resume la matriz comparativa (diseños, poblaciones, variables y resultados).
+  3) "En la Figura 2..." describiendo el patrón por año usando figures.byYear.
+  4) "En la Figura 3..." describiendo la distribución por país usando figures.byCountry.
   No crees una sección de anexos.
 - Discussion: interpreta, limitaciones y implicaciones.
 - Conclusions: 80–150 palabras.

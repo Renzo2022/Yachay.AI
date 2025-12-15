@@ -603,10 +603,14 @@ const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectDat
   const prismaIncluded = aggregated?.prisma?.included ?? includedCount
   const phase1Question = aggregated?.phase1?.mainQuestion ?? '¿Cuál es el efecto de las intervenciones basadas en IA en contextos educativos?'
 
+  const normalizedQuestion = phase1Question.replace(/[¿?]/g, '').trim()
+  const title = `${normalizedQuestion || 'Revisión sistemática'}: Una revisión sistemática`
+
   const references = buildApaReferences(aggregated?.includedStudies ?? [])
 
   const manuscript = {
   ...createEmptyManuscript(projectId),
+  title,
   abstract:
     `Esta revisión sistemática sintetiza la evidencia disponible sobre intervenciones basadas en IA y su impacto en contextos educativos. Se aplicó la guía PRISMA 2020 para asegurar transparencia y reproducibilidad. En total se identificaron ${prismaIdentified} registros y se incluyeron ${prismaIncluded} estudios.`,
   introduction:
@@ -620,6 +624,8 @@ const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectDat
   conclusions:
     'La evidencia converge en que las herramientas basadas en IA optimizan la retroalimentación y reducen tiempos de respuesta, siempre que exista acompañamiento pedagógico. Las futuras investigaciones deben priorizar poblaciones subrepresentadas y métricas de impacto sostenido.',
   references,
+  prismaChecklistValidated: false,
+  finalSubmissionReady: false,
   generatedAt: Date.now(),
   wordCount: 0,
   }
@@ -647,10 +653,12 @@ export const generateFullManuscript = async (
 
     const base = createEmptyManuscript(projectId)
     const references = buildApaReferences(aggregated?.includedStudies ?? [])
+    const derivedTitle = DEFAULT_MANUSCRIPT(projectId, aggregated).title
     const manuscript = {
       ...base,
       ...response,
       projectId,
+      title: typeof response.title === 'string' && response.title.trim() ? response.title.trim() : derivedTitle,
       references,
       generatedAt: response.generatedAt ?? Date.now(),
     }

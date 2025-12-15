@@ -18,6 +18,7 @@ export type AnnexesData = {
 export interface Manuscript {
   id: string
   projectId: string
+  title: string
   abstract: string
   introduction: string
   methods: string
@@ -25,6 +26,8 @@ export interface Manuscript {
   discussion: string
   conclusions: string
   references: string[]
+  prismaChecklistValidated: boolean
+  finalSubmissionReady: boolean
   generatedAt: number
   wordCount: number
 }
@@ -32,6 +35,7 @@ export interface Manuscript {
 export const createEmptyManuscript = (projectId: string): Manuscript => ({
   id: crypto.randomUUID(),
   projectId,
+  title: '',
   abstract: '',
   introduction: '',
   methods: '',
@@ -39,6 +43,8 @@ export const createEmptyManuscript = (projectId: string): Manuscript => ({
   discussion: '',
   conclusions: '',
   references: [],
+  prismaChecklistValidated: false,
+  finalSubmissionReady: false,
   generatedAt: Date.now(),
   wordCount: 0,
 })
