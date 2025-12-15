@@ -36,6 +36,29 @@ const captureElementPng = async (elementId: string) => {
   }
 }
 
+const captureElementCanvas = async (elementId: string) => {
+  const element = document.getElementById(elementId)
+  if (!element) return null
+  return html2canvas(element, { backgroundColor: '#ffffff', scale: 2, useCORS: true })
+}
+
+const sliceCanvas = (canvas: HTMLCanvasElement, sliceHeightPx: number) => {
+  const slices: Array<{ dataUrl: string; width: number; height: number }> = []
+  const totalHeight = canvas.height
+  const width = canvas.width
+  for (let y = 0; y < totalHeight; y += sliceHeightPx) {
+    const height = Math.min(sliceHeightPx, totalHeight - y)
+    const slice = document.createElement('canvas')
+    slice.width = width
+    slice.height = height
+    const ctx = slice.getContext('2d')
+    if (!ctx) break
+    ctx.drawImage(canvas, 0, y, width, height, 0, 0, width, height)
+    slices.push({ dataUrl: slice.toDataURL('image/png'), width, height })
+  }
+  return slices
+}
+
 const dataUrlToUint8Array = (dataUrl: string) => {
   const base64 = dataUrl.split(',')[1] ?? ''
   const binary = atob(base64)
@@ -62,10 +85,10 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
       `## Introducción\n${manuscript.introduction}`,
       `## Métodos\n${manuscript.methods}`,
       `## Resultados\n${manuscript.results}`,
-      `### Figura 1. Diagrama PRISMA 2020\nFuente: Elaboración propia`,
-      `### Tabla 1. Matriz comparativa\nFuente: Elaboración propia`,
-      `### Figura 2. Distribución por año\nFuente: Elaboración propia`,
-      `### Figura 3. Distribución por país\nFuente: Elaboración propia`,
+      `### **Figura 1.** Diagrama PRISMA 2020\n***Fuente: Elaboración propia***`,
+      `### **Tabla 1.** Matriz comparativa (resumen)\n***Fuente: Elaboración propia***`,
+      `### **Figura 2.** Distribución por año\n***Fuente: Elaboración propia***`,
+      `### **Figura 3.** Distribución por país\n***Fuente: Elaboración propia***`,
       `## Discusión\n${manuscript.discussion}`,
       `## Conclusiones\n${manuscript.conclusions}`,
       `## Referencias\n${manuscript.references.map((ref, idx) => `${idx + 1}. ${ref}`).join('\n')}`,
@@ -80,8 +103,12 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
         prisma: await captureElementPng('phase7-fig-prisma'),
         byYear: await captureElementPng('phase7-fig-by-year'),
         byCountry: await captureElementPng('phase7-fig-by-country'),
-        matrix: matrixRowCount ? await captureElementPng('phase7-table-matrix') : null,
       }
+
+      const matrixCanvas = matrixRowCount ? await captureElementCanvas('phase7-table-matrix') : null
+      const matrixSlices = matrixCanvas
+        ? sliceCanvas(matrixCanvas, Math.floor((650 * matrixCanvas.width) / 560))
+        : []
 
       const sections = [
         { title: 'Resumen', field: 'abstract' as const },
@@ -130,9 +157,25 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
 
       const sourceParagraph = () =>
         new Paragraph({
-          children: [new TextRun('Fuente: Elaboración propia')],
+          children: [new TextRun({ text: 'Fuente: Elaboración propia', bold: true, italics: true })],
           spacing: { after: 200 },
         })
+
+      const pageBreakParagraph = () =>
+        new Paragraph({
+          children: [],
+          pageBreakBefore: true,
+        })
+
+      const toImageParagraphsPaged = (images: Array<{ dataUrl: string; width: number; height: number }>) => {
+        if (!images.length) return []
+        const paragraphs: Paragraph[] = []
+        images.forEach((img, index) => {
+          if (index > 0) paragraphs.push(pageBreakParagraph())
+          paragraphs.push(...toImageParagraphs(img))
+        })
+        return paragraphs
+      }
 
       const buildResultsAssets = () => {
         const children: Paragraph[] = []
@@ -141,9 +184,9 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
         children.push(...toImageParagraphs(resultsImages.prisma))
         children.push(sourceParagraph())
 
-        children.push(captionTitleParagraph('Tabla 1: Matriz comparativa'))
-        if (resultsImages.matrix) {
-          children.push(...toImageParagraphs(resultsImages.matrix))
+        children.push(captionTitleParagraph('Tabla 1: Matriz comparativa (resumen)'))
+        if (matrixSlices.length) {
+          children.push(...toImageParagraphsPaged(matrixSlices))
         } else {
           children.push(
             new Paragraph({
@@ -185,7 +228,10 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
                     }),
                     ...toParagraphs(content, AlignmentType.CENTER),
                     new Paragraph({
-                      children: [new TextRun({ text: `Palabras clave: ${keywordsLine || '—'}` })],
+                      children: [
+                        new TextRun({ text: 'Palabras clave: ', bold: true }),
+                        new TextRun({ text: keywordsLine || '—' }),
+                      ],
                       spacing: { after: 200 },
                     }),
                   ]
@@ -259,12 +305,16 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
     }
 
     const addCenteredHeading = (text: string) => {
-      ensureSpace(30)
       pdf.setFont('Times', 'bold')
       pdf.setFontSize(22)
       const pageWidth = pdf.internal.pageSize.getWidth()
-      pdf.text(text, pageWidth / 2, cursorY, { align: 'center' })
-      cursorY += 34
+      const lines = pdf.splitTextToSize(text, maxWidth)
+      lines.forEach((line: string) => {
+        ensureSpace(30)
+        pdf.text(line, pageWidth / 2, cursorY, { align: 'center' })
+        cursorY += 26
+      })
+      cursorY += 8
     }
 
     const addParagraph = (text: string) => {
@@ -277,6 +327,26 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
         cursorY += 16
       })
       cursorY += 8
+    }
+
+    const addBoldParagraph = (text: string) => {
+      pdf.setFont('Times', 'bold')
+      pdf.setFontSize(12)
+      const lines = pdf.splitTextToSize(text, maxWidth)
+      lines.forEach((line: string) => {
+        ensureSpace(16)
+        pdf.text(line, marginX, cursorY)
+        cursorY += 16
+      })
+      cursorY += 8
+    }
+
+    const addFuenteParagraph = () => {
+      pdf.setFont('Times', 'bolditalic')
+      pdf.setFontSize(12)
+      ensureSpace(16)
+      pdf.text('Fuente: Elaboración propia', marginX, cursorY)
+      cursorY += 24
     }
 
     const addCenteredParagraph = (text: string) => {
@@ -308,6 +378,28 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
       cursorY += height + 12
     }
 
+    const addMatrixFromElementPaged = async (elementId: string) => {
+      const canvas = await captureElementCanvas(elementId)
+      if (!canvas) return
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 40
+      const usableWidth = pageWidth - margin * 2
+
+      const slicePx = Math.floor((700 * canvas.width) / usableWidth)
+      const slices = sliceCanvas(canvas, slicePx)
+
+      for (const slice of slices) {
+        const ratio = slice.height / slice.width
+        const height = usableWidth * ratio
+        if (cursorY + height > 780) {
+          pdf.addPage()
+          cursorY = 60
+        }
+        pdf.addImage(slice.dataUrl, 'PNG', margin, cursorY, usableWidth, height)
+        cursorY += height + 12
+      }
+    }
+
     addCenteredHeading(reportTitle || projectName)
 
     const sections = [
@@ -325,32 +417,37 @@ export const ExportToolbar = ({ manuscript, projectName, reportTitle, keywords, 
 
       if (section.field === 'abstract') {
         content.split(/\n{2,}/).forEach((chunk) => addCenteredParagraph(chunk))
-        addParagraph(`Palabras clave: ${keywordsLine || '—'}`)
+        pdf.setFont('Times', 'bold')
+        pdf.setFontSize(12)
+        ensureSpace(16)
+        pdf.text('Palabras clave:', marginX, cursorY)
+        cursorY += 16
+        addParagraph(keywordsLine || '—')
         continue
       }
 
       content.split(/\n{2,}/).forEach((chunk) => addParagraph(chunk))
 
       if (section.field === 'results') {
-        addParagraph('Figura 1: Diagrama PRISMA 2020')
+        addBoldParagraph('Figura 1: Diagrama PRISMA 2020')
         await addImageFromElement('phase7-fig-prisma')
-        addParagraph('Fuente: Elaboración propia')
+        addFuenteParagraph()
 
-        addParagraph('Tabla 1: Matriz comparativa')
+        addBoldParagraph('Tabla 1: Matriz comparativa (resumen)')
         if (matrixRowCount) {
-          await addImageFromElement('phase7-table-matrix')
+          await addMatrixFromElementPaged('phase7-table-matrix')
         } else {
           addParagraph('(Sin datos)')
         }
-        addParagraph('Fuente: Elaboración propia')
+        addFuenteParagraph()
 
-        addParagraph('Figura 2: Distribución por año')
+        addBoldParagraph('Figura 2: Distribución por año')
         await addImageFromElement('phase7-fig-by-year')
-        addParagraph('Fuente: Elaboración propia')
+        addFuenteParagraph()
 
-        addParagraph('Figura 3: Distribución por país')
+        addBoldParagraph('Figura 3: Distribución por país')
         await addImageFromElement('phase7-fig-by-country')
-        addParagraph('Fuente: Elaboración propia')
+        addFuenteParagraph()
       }
     }
 

@@ -97,16 +97,26 @@ const computePhase6Completion = (synthesis: SynthesisData): number => {
 
 const computePhase7Completion = (manuscript: Manuscript | null): number => {
   if (!manuscript) return 0
-  const sections = [
+
+  const coreSections = [
     manuscript.abstract,
+    manuscript.introduction,
     manuscript.methods,
     manuscript.results,
     manuscript.discussion,
     manuscript.conclusions,
   ]
-  const filled = sections.filter((section) => Boolean(section?.trim())).length
+
+  const hasTitle = Boolean(manuscript.title?.trim())
+  const filledSections = coreSections.filter((section) => Boolean(section?.trim())).length
   const hasReferences = manuscript.references.length > 0
-  const steps = [filled >= 1, filled >= 3, filled >= 5, hasReferences]
+
+  const redactarArticulo = hasTitle && filledSections >= 5 && hasReferences
+  const formatearReferencias = Boolean(manuscript.referencesFormatted)
+  const validarPrisma = Boolean(manuscript.prismaChecklistValidated)
+  const prepararVersionFinal = Boolean(manuscript.finalSubmissionReady)
+
+  const steps = [redactarArticulo, formatearReferencias, validarPrisma, prepararVersionFinal]
   return steps.filter(Boolean).length
 }
 

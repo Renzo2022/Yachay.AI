@@ -64,19 +64,23 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                     )}
                   </div>
                   <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
-                    Fuente: Elaboración propia
+                    <strong>
+                      <em>Fuente: Elaboración propia</em>
+                    </strong>
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <p className="text-sm text-black" style={{ fontFamily: '"Merriweather", serif' }}>
-                    <strong>Tabla 1:</strong> Matriz comparativa
+                    <strong>Tabla 1:</strong> Matriz comparativa (resumen)
                   </p>
                   <div id="phase7-table-matrix" className="bg-white">
-                    <ExtractionMatrixTable rows={matrixRows ?? []} variant="plain" />
+                    <ExtractionMatrixTable rows={matrixRows ?? []} variant="compact" />
                   </div>
                   <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
-                    Fuente: Elaboración propia
+                    <strong>
+                      <em>Fuente: Elaboración propia</em>
+                    </strong>
                   </p>
                 </div>
 
@@ -95,7 +99,9 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                     </ResponsiveContainer>
                   </div>
                   <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
-                    Fuente: Elaboración propia
+                    <strong>
+                      <em>Fuente: Elaboración propia</em>
+                    </strong>
                   </p>
                 </div>
 
@@ -123,7 +129,9 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                     </ResponsiveContainer>
                   </div>
                   <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
-                    Fuente: Elaboración propia
+                    <strong>
+                      <em>Fuente: Elaboración propia</em>
+                    </strong>
                   </p>
                 </div>
               </div>

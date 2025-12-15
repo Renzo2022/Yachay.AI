@@ -26,6 +26,7 @@ export interface Manuscript {
   discussion: string
   conclusions: string
   references: string[]
+  referencesFormatted: boolean
   prismaChecklistValidated: boolean
   finalSubmissionReady: boolean
   generatedAt: number
@@ -43,6 +44,7 @@ export const createEmptyManuscript = (projectId: string): Manuscript => ({
   discussion: '',
   conclusions: '',
   references: [],
+  referencesFormatted: false,
   prismaChecklistValidated: false,
   finalSubmissionReady: false,
   generatedAt: Date.now(),

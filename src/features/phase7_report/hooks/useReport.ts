@@ -187,6 +187,50 @@ export const useReport = (projectId: string) => {
     [manuscript, projectId],
   )
 
+  const formatReferences = useCallback(async () => {
+    if (!projectId) return
+    const base = manuscript ?? createEmptyManuscript(projectId)
+    let nextReferences = base.references ?? []
+    try {
+      if (!nextReferences.length) {
+        const aggregated = await aggregateProjectData(projectId)
+        nextReferences = buildApaReferences(aggregated.includedStudies)
+      }
+    } catch {
+      // ignore; mark as formatted only if references already present
+    }
+
+    const next: Manuscript = {
+      ...base,
+      references: nextReferences,
+      referencesFormatted: Boolean(nextReferences.length),
+      wordCount: computeWordCount({ ...base, references: nextReferences } as Manuscript),
+    }
+    await saveManuscript(projectId, next)
+  }, [buildApaReferences, manuscript, projectId])
+
+  const togglePrismaChecklistValidated = useCallback(async () => {
+    if (!projectId) return
+    const base = manuscript ?? createEmptyManuscript(projectId)
+    const next: Manuscript = {
+      ...base,
+      prismaChecklistValidated: !Boolean(base.prismaChecklistValidated),
+      wordCount: computeWordCount(base),
+    }
+    await saveManuscript(projectId, next)
+  }, [manuscript, projectId])
+
+  const toggleFinalSubmissionReady = useCallback(async () => {
+    if (!projectId) return
+    const base = manuscript ?? createEmptyManuscript(projectId)
+    const next: Manuscript = {
+      ...base,
+      finalSubmissionReady: !Boolean(base.finalSubmissionReady),
+      wordCount: computeWordCount(base),
+    }
+    await saveManuscript(projectId, next)
+  }, [manuscript, projectId])
+
   const generateManuscript = useCallback(async () => {
     if (!projectId) return null
     try {
@@ -261,5 +305,8 @@ export const useReport = (projectId: string) => {
     generateManuscript,
     regenerateManuscript,
     updateSection,
+    formatReferences,
+    togglePrismaChecklistValidated,
+    toggleFinalSubmissionReady,
   }
 }

@@ -36,6 +36,9 @@ export const Phase7View = () => {
     generateManuscript,
     regenerateManuscript,
     updateSection,
+    formatReferences,
+    togglePrismaChecklistValidated,
+    toggleFinalSubmissionReady,
   } = useReport(project.id)
 
   const handleGenerate = useCallback(async () => {
@@ -72,6 +75,50 @@ export const Phase7View = () => {
             }}
             regenerating={generating}
           />
+
+          <div className="border-4 border-black bg-white shadow-[14px_14px_0_0_#111] p-4 font-mono text-sm text-black space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="border-3 border-black px-3 py-1 bg-neutral-100">
+                <strong>Referencias:</strong> {manuscript?.referencesFormatted ? 'Formateadas' : 'Pendientes'}
+              </span>
+              <span className="border-3 border-black px-3 py-1 bg-neutral-100">
+                <strong>Checklist PRISMA:</strong> {manuscript?.prismaChecklistValidated ? 'Validado' : 'Pendiente'}
+              </span>
+              <span className="border-3 border-black px-3 py-1 bg-neutral-100">
+                <strong>Versión final:</strong> {manuscript?.finalSubmissionReady ? 'Lista' : 'Pendiente'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="border-3 border-black px-4 py-2 bg-white text-black"
+                onClick={async () => {
+                  await formatReferences()
+                }}
+              >
+                Formatear referencias
+              </button>
+              <button
+                type="button"
+                className="border-3 border-black px-4 py-2 bg-white text-black"
+                onClick={async () => {
+                  await togglePrismaChecklistValidated()
+                }}
+              >
+                Validar checklist PRISMA
+              </button>
+              <button
+                type="button"
+                className="border-3 border-black px-4 py-2 bg-white text-black"
+                onClick={async () => {
+                  await toggleFinalSubmissionReady()
+                }}
+              >
+                Preparar versión final
+              </button>
+            </div>
+          </div>
           <div className="border-4 border-black bg-white shadow-[14px_14px_0_0_#111] p-4 font-mono text-sm flex flex-wrap gap-4 text-black">
             <span>
               <strong>Proyecto:</strong> {project.name}

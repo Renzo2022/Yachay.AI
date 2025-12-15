@@ -226,6 +226,44 @@ export const ProjectLayout = () => {
                 </ul>
               </aside>
             ) : null}
+
+            {location.pathname.includes('/phase7') ? (
+              <aside className="border-4 border-black bg-neutral-100 shadow-brutal rounded-none p-5 space-y-4">
+                <header className="flex items-center justify-between">
+                  <h3 className="text-2xl font-black uppercase text-main">Fase 7</h3>
+                  <span className="text-xs font-mono uppercase tracking-[0.3em] text-black">Actividades</span>
+                </header>
+                <ul className="space-y-3">
+                  {(
+                    [
+                      { id: 'phase7-1', label: 'Redactar el artículo (PRISMA)' },
+                      { id: 'phase7-2', label: 'Formatear referencias' },
+                      { id: 'phase7-3', label: 'Validar checklist PRISMA' },
+                      { id: 'phase7-4', label: 'Preparar versión final de envío' },
+                    ] as const
+                  ).map((item, index) => {
+                    const completed = phaseProgress.phase7.completed
+                    const done = completed >= index + 1
+
+                    return (
+                      <li
+                        key={item.id}
+                        className={`flex items-center gap-3 border-3 border-black px-4 py-3 bg-white ${done ? 'bg-accent-success/30' : ''}`}
+                      >
+                        <span
+                          className={`w-6 h-6 border-3 border-black flex items-center justify-center font-black ${
+                            done ? 'bg-accent-success text-main' : 'bg-white'
+                          }`}
+                        >
+                          {done ? '✔' : ''}
+                        </span>
+                        <span className="font-mono text-sm text-main">{item.label}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </aside>
+            ) : null}
             <div id="phase3-checklist-slot" className="space-y-4" />
           </aside>
 

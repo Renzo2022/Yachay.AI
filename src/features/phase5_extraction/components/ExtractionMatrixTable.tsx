@@ -8,7 +8,7 @@ interface ExtractionMatrixRow {
 
 interface ExtractionMatrixTableProps {
   rows: ExtractionMatrixRow[]
-  variant?: 'default' | 'plain'
+  variant?: 'default' | 'plain' | 'compact'
 }
 
 const statusColors: Record<ExtractionData['status'] | 'empty', string> = {
@@ -27,32 +27,37 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
   }
 
   const containerClass =
-    variant === 'plain'
+    variant === 'plain' || variant === 'compact'
       ? 'bg-white overflow-auto'
       : 'border-4 border-black bg-white shadow-[10px_10px_0_0_#111] overflow-auto'
 
   const headerClass =
-    variant === 'plain'
+    variant === 'plain' || variant === 'compact'
       ? 'bg-neutral-100 text-black'
       : 'bg-[#FF005C] text-white sticky top-0'
+
+  const headers =
+    variant === 'compact'
+      ? ['Autor', 'Tipo de estudio', 'Población', 'Variables', 'Resultados']
+      : [
+          'Autor',
+          'Año',
+          'País',
+          'Tipo de estudio',
+          'Población',
+          'Variables',
+          'Resultados',
+          'Conclusiones',
+          'Nivel de evidencia',
+          'Estado',
+        ]
 
   return (
     <div className={containerClass}>
       <table className="w-full border-collapse font-mono text-sm text-black">
         <thead className={headerClass}>
           <tr>
-            {[
-              'Autor',
-              'Año',
-              'País',
-              'Tipo de estudio',
-              'Población',
-              'Variables',
-              'Resultados',
-              'Conclusiones',
-              'Nivel de evidencia',
-              'Estado',
-            ].map((header) => (
+            {headers.map((header) => (
               <th key={header} className="border-2 border-black px-4 py-3 text-left uppercase tracking-wide text-xs">
                 {header}
               </th>
@@ -73,10 +78,26 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
             const evidenceLevel = study.qualityLevel ?? '—'
 
             const statusLabel = statusKey === 'verified' ? 'Verificado' : 'Pendiente'
+
+            if (variant === 'compact') {
+              return (
+                <tr key={study.id} className="odd:bg-neutral-50">
+                  <td className="border-2 border-black px-4 py-3 align-top">
+                    <p className="text-base font-black text-black">{authors}</p>
+                    <p className="text-xs text-neutral-700 line-clamp-2">{study.title}</p>
+                  </td>
+                  <td className="border-2 border-black px-4 py-3 align-top">{studyType}</td>
+                  <td className="border-2 border-black px-4 py-3 align-top">{population}</td>
+                  <td className="border-2 border-black px-4 py-3 align-top">{variables}</td>
+                  <td className="border-2 border-black px-4 py-3 align-top">{results}</td>
+                </tr>
+              )
+            }
+
             return (
               <tr key={study.id} className="odd:bg-neutral-50">
                 <td className="border-2 border-black px-4 py-3">
-                  <p className="text-base font-black text-neutral-900">{authors}</p>
+                  <p className="text-base font-black text-black">{authors}</p>
                   <p className="text-xs text-neutral-600 line-clamp-2">{study.title}</p>
                 </td>
                 <td className="border-2 border-black px-4 py-3">
