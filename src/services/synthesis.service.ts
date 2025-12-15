@@ -19,7 +19,7 @@ const normalizeTheme = (raw: Partial<SynthesisTheme> & Record<string, unknown>):
   const subtheme = typeof raw.subtheme === 'string' ? raw.subtheme : ''
   const example = typeof raw.example === 'string' ? raw.example : legacyDescription
 
-  const studyCount = typeof raw.studyCount === 'number' && !Number.isNaN(raw.studyCount) ? raw.studyCount : relatedStudies.length
+  const studyCount = relatedStudies.length
 
   return {
     id,

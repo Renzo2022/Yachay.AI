@@ -457,6 +457,11 @@ app.post("/cohere/synthesis", async (req, res) => {
       };
     });
 
+    const allowedStudyIds = compactStudies
+      .map((study) => study.id)
+      .filter((id) => typeof id === "string" && id.trim())
+      .slice(0, 100);
+
     const prompt = `Eres un investigador experto en síntesis y análisis de revisiones.
 
 Recibirás una tabla de resultados (JSON) con datos extraídos de múltiples estudios.
@@ -472,11 +477,17 @@ Devuelve EXCLUSIVAMENTE JSON válido con el esquema EXACTO solicitado.
 Reglas:
 - themes: genera entre 5 y 12 filas si hay suficientes datos.
 - theme y subtheme: concisos (máx. 6 palabras cada uno).
-- studyCount: entero >= 1 y coherente con relatedStudies.length.
+- relatedStudies: DEBE ser una lista de IDs EXACTOS tomados de la tabla de entrada.
+- NO inventes estudios ni uses IDs no presentes.
+- Si no puedes vincular un tema a ningún estudio, pon relatedStudies: [] y studyCount: 0.
+- studyCount: DEBE ser exactamente igual a relatedStudies.length.
 - example: frase breve apoyada por evidencia (si puedes, incluye una cita textual corta entre comillas).
 - divergences: 2 a 8 ítems.
 - gaps: 2 a 8 ítems.
 - narrative: 200–300 palabras, español neutro, 1–2 párrafos.
+
+IDs permitidos para relatedStudies (usa SOLO estos):
+${JSON.stringify(allowedStudyIds)}
 
 Tabla de resultados (JSON):
 ${JSON.stringify(compactStudies)}`;

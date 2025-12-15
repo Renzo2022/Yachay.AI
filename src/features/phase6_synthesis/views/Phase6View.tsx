@@ -82,7 +82,15 @@ export const Phase6View = () => {
       ) : null}
 
       {activeTab === 'themes' ? (
-        <ThematicAnalysis themes={themes} studies={studies} onAdd={addTheme} onUpdate={updateTheme} onDelete={deleteTheme} />
+        <ThematicAnalysis
+          themes={themes}
+          studies={studies}
+          onAdd={addTheme}
+          onUpdate={updateTheme}
+          onDelete={deleteTheme}
+          onGenerateDraft={generateSynthesisDraft}
+          generating={generating}
+        />
       ) : null}
 
       {activeTab === 'narrative' ? (
@@ -93,8 +101,6 @@ export const Phase6View = () => {
           onNarrativeChange={updateNarrative}
           onDivergencesChange={updateDivergences}
           onGapsChange={updateGaps}
-          onGenerateDraft={generateSynthesisDraft}
-          generating={generating}
         />
       ) : null}
     </div>

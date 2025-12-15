@@ -8,8 +8,6 @@ interface NarrativeEditorProps {
   onNarrativeChange: (value: string) => Promise<void>
   onDivergencesChange: (divergences: string[]) => Promise<void>
   onGapsChange: (gaps: string[]) => Promise<void>
-  onGenerateDraft: () => Promise<void>
-  generating: boolean
 }
 
 export const NarrativeEditor = ({
@@ -19,8 +17,6 @@ export const NarrativeEditor = ({
   onNarrativeChange,
   onDivergencesChange,
   onGapsChange,
-  onGenerateDraft,
-  generating,
 }: NarrativeEditorProps) => {
   const [localNarrative, setLocalNarrative] = useState(narrative)
   const [localDivergences, setLocalDivergences] = useState(divergences)
@@ -96,9 +92,6 @@ export const NarrativeEditor = ({
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Narrativa</p>
             <h3 className="text-2xl font-black text-neutral-900">Síntesis narrativa</h3>
           </div>
-          <BrutalButton variant="primary" className="bg-[#F97316] text-white" onClick={onGenerateDraft} disabled={generating}>
-            {generating ? 'Generando...' : '🤖 Generar síntesis con IA'}
-          </BrutalButton>
         </header>
         <textarea
           className="w-full min-h-[240px] border-4 border-black bg-neutral-50 p-4 font-mono text-sm text-black placeholder:text-neutral-500"

@@ -9,9 +9,19 @@ interface ThematicAnalysisProps {
   onAdd: (theme: Omit<SynthesisTheme, 'id'>) => Promise<void>
   onUpdate: (theme: SynthesisTheme) => Promise<void>
   onDelete: (themeId: string) => Promise<void>
+  onGenerateDraft?: () => Promise<void>
+  generating?: boolean
 }
 
-export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }: ThematicAnalysisProps) => {
+export const ThematicAnalysis = ({
+  themes,
+  studies,
+  onAdd,
+  onUpdate,
+  onDelete,
+  onGenerateDraft,
+  generating,
+}: ThematicAnalysisProps) => {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Omit<SynthesisTheme, 'id'>>({
@@ -75,43 +85,69 @@ export const ThematicAnalysis = ({ themes, studies, onAdd, onUpdate, onDelete }:
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Temas</p>
             <h3 className="text-2xl font-black text-neutral-900">Análisis temático</h3>
           </div>
-          <BrutalButton variant="primary" className="bg-[#F97316] text-white" onClick={() => setShowForm((prev) => !prev)}>
-            {showForm ? 'Cerrar' : '➕ Agregar Tema'}
-          </BrutalButton>
+          <div className="flex items-center gap-3">
+            {onGenerateDraft ? (
+              <BrutalButton variant="primary" className="bg-[#F97316] text-white" onClick={onGenerateDraft} disabled={Boolean(generating)}>
+                {generating ? 'Generando...' : '🤖 Generar síntesis completa'}
+              </BrutalButton>
+            ) : null}
+            <BrutalButton variant="primary" className="bg-[#F97316] text-white" onClick={() => setShowForm((prev) => !prev)}>
+              {showForm ? 'Cerrar' : '➕ Agregar Tema'}
+            </BrutalButton>
+          </div>
         </div>
 
         {showForm ? (
           <div className="mt-6 border-4 border-black bg-neutral-50 p-4 space-y-4">
             <input
-              className="w-full border-3 border-black px-3 py-2 font-mono"
+              className="w-full border-3 border-black px-3 py-2 font-mono text-black placeholder:text-neutral-500"
               placeholder="Tema"
               value={draft.theme}
               onChange={(event) => setDraft((prev) => ({ ...prev, theme: event.target.value }))}
             />
             <input
-              className="w-full border-3 border-black px-3 py-2 font-mono"
+              className="w-full border-3 border-black px-3 py-2 font-mono text-black placeholder:text-neutral-500"
               placeholder="Subtema"
               value={draft.subtheme}
               onChange={(event) => setDraft((prev) => ({ ...prev, subtheme: event.target.value }))}
             />
             <textarea
-              className="w-full border-3 border-black px-3 py-2 font-mono"
+              className="w-full border-3 border-black px-3 py-2 font-mono text-black placeholder:text-neutral-500"
               placeholder="Ejemplo (usa evidencia textual si es posible)"
               rows={3}
               value={draft.example}
               onChange={(event) => setDraft((prev) => ({ ...prev, example: event.target.value }))}
             />
-            <div className="max-h-40 overflow-auto border-3 border-dashed border-black p-3 space-y-2">
-              <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Estudios relacionados</p>
-              {studies.map((study) => {
-                const checked = draft.relatedStudies.includes(study.id)
-                return (
-                  <label key={study.id} className="flex items-center gap-2 text-sm font-mono">
-                    <input type="checkbox" checked={checked} onChange={() => toggleStudy(study.id)} />
-                    <span>{study.title}</span>
-                  </label>
-                )
-              })}
+            <div className="max-h-48 overflow-auto border-3 border-dashed border-black p-3 bg-white space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Estudios relacionados</p>
+                <p className="text-xs font-mono text-neutral-600">{draft.relatedStudies.length}/{studies.length}</p>
+              </div>
+
+              <div className="grid gap-2">
+                {studies.map((study) => {
+                  const checked = draft.relatedStudies.includes(study.id)
+                  return (
+                    <label
+                      key={study.id}
+                      className={`flex items-start gap-3 border-3 border-black px-3 py-2 font-mono text-black bg-white shadow-[3px_3px_0_0_#111] transition-all cursor-pointer select-none ${
+                        checked ? 'bg-[#F97316]/15' : 'hover:-translate-y-0.5 hover:-translate-x-0.5'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStudy(study.id)}
+                        className="mt-1"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm leading-snug break-words">{study.title}</p>
+                        <p className="text-xs text-neutral-600">{study.year ?? '—'} · {(study.authors?.[0] ?? '').slice(0, 40)}</p>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
             <div className="flex justify-end gap-3">
               <BrutalButton

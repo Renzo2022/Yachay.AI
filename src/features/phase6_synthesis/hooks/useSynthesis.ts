@@ -20,6 +20,8 @@ export const useSynthesis = (projectId: string) => {
   const [generating, setGenerating] = useState(false)
   const { showToast } = useToast()
 
+  const studyIdSet = useMemo(() => new Set(studies.map((study) => study.id)), [studies])
+
   useEffect(() => {
     if (!projectId) return
 
@@ -107,14 +109,41 @@ export const useSynthesis = (projectId: string) => {
 
       const response = await generateSynthesis(input)
 
-      const themes = (response.themes ?? []).map((theme) => ({
-        id: crypto.randomUUID(),
-        theme: theme.theme,
-        subtheme: theme.subtheme,
-        example: theme.example,
-        studyCount: theme.studyCount,
-        relatedStudies: Array.isArray(theme.relatedStudies) ? theme.relatedStudies : [],
-      }))
+      const resolveStudyId = (ref: string): string | null => {
+        const trimmed = ref.trim()
+        if (!trimmed) return null
+        if (studyIdSet.has(trimmed)) return trimmed
+
+        const normalized = trimmed.toLowerCase()
+        const exact = studies.find((study) => study.title?.trim().toLowerCase() === normalized)
+        if (exact) return exact.id
+
+        const includes = studies.find((study) => study.title?.toLowerCase().includes(normalized))
+        if (includes) return includes.id
+
+        return null
+      }
+
+      const themes = (response.themes ?? []).map((theme) => {
+        const rawRelated = Array.isArray(theme.relatedStudies) ? theme.relatedStudies : []
+        const normalizedRelated = Array.from(
+          new Set(
+            rawRelated
+              .filter((item): item is string => typeof item === 'string')
+              .map((item) => resolveStudyId(item))
+              .filter((item): item is string => Boolean(item)),
+          ),
+        )
+
+        return {
+          id: crypto.randomUUID(),
+          theme: theme.theme,
+          subtheme: theme.subtheme,
+          example: theme.example,
+          studyCount: normalizedRelated.length,
+          relatedStudies: normalizedRelated,
+        }
+      })
 
       await saveSynthesisData(projectId, {
         themes,
