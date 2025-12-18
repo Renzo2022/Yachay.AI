@@ -26,6 +26,28 @@ export const useExtraction = (projectId: string) => {
   const [lastPreview, setLastPreview] = useState<string>('')
   const { showToast } = useToast()
 
+  const isLikelyPdfUrl = useCallback((value: string) => /\.pdf(\?|#|$)/i.test(value) || /\/pdf\/proxy\?url=/i.test(value), [])
+
+  const normalizePdfUrlInput = useCallback(
+    (value: string): { rawUrl: string; fetchUrl: string } => {
+      const trimmed = value.trim()
+      if (!trimmed) return { rawUrl: '', fetchUrl: '' }
+
+      if (/\/pdf\/proxy\?url=/i.test(trimmed)) {
+        try {
+          const parsed = new URL(trimmed)
+          const raw = parsed.searchParams.get('url')
+          return { rawUrl: raw?.trim() || trimmed, fetchUrl: trimmed }
+        } catch {
+          return { rawUrl: trimmed, fetchUrl: trimmed }
+        }
+      }
+
+      return { rawUrl: trimmed, fetchUrl: buildPdfProxyUrl(trimmed) }
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!projectId) return
 
@@ -85,9 +107,29 @@ export const useExtraction = (projectId: string) => {
           return null
         }
 
-        const isLikelyPdfUrl = (value: string) => /\.pdf(\?|#|$)/i.test(value)
-
         let pdfSource: File | string | null | undefined = source
+
+        if (typeof pdfSource === 'string') {
+          const normalized = pdfSource.trim()
+          if (!normalized) {
+            pdfSource = null
+          } else {
+            if (!isLikelyPdfUrl(normalized)) {
+              throw new Error('El enlace debe ser un PDF directo (.pdf).')
+            }
+            const normalizedUrl = normalizePdfUrlInput(normalized)
+
+            if (normalizedUrl.rawUrl && normalizedUrl.rawUrl !== (study.pdfUrl ?? '').trim()) {
+              try {
+                await updateIncludedStudyRecord(projectId, study.id, { pdfUrl: normalizedUrl.rawUrl })
+              } catch {
+              }
+            }
+
+            pdfSource = normalizedUrl.fetchUrl
+          }
+        }
+
         if (!pdfSource) {
           if (typeof study.pdfUrl === 'string' && study.pdfUrl.trim()) {
             pdfSource = buildPdfProxyUrl(study.pdfUrl.trim())
