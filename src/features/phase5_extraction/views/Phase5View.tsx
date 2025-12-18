@@ -23,6 +23,22 @@ const fireConfetti = () =>
     colors: ['#FF005C', '#FFD300', '#FFFFFF', '#00FFFF'],
   })
 
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const toCsvField = (value: unknown, delimiter: string) => {
+  const text = String(value ?? '')
+  const needsQuotes = text.includes('"') || text.includes('\n') || text.includes('\r') || text.includes(delimiter)
+  if (!needsQuotes) return text
+  return `"${text.replace(/"/g, '""')}"`
+}
+
 export const Phase5View = () => {
   const project = useProject()
   const [activeTab, setActiveTab] = useState<'list' | 'matrix'>('list')
@@ -36,6 +52,11 @@ export const Phase5View = () => {
   const matrixRows = useMemo(
     () => studies.map((study) => ({ study, extraction: getExtractionForStudy(study.id) })),
     [studies, getExtractionForStudy],
+  )
+
+  const exportableMatrixRows = useMemo(
+    () => matrixRows.filter((row) => row.extraction?.status !== 'not_extractable'),
+    [matrixRows],
   )
 
   const handleAutoExtract = async (study: Candidate, file?: File | string | null) => {
@@ -93,6 +114,46 @@ export const Phase5View = () => {
   const resolvedCount = stats.verified + stats.not_extractable
   const pendingCount = Math.max(0, studies.length - resolvedCount)
 
+  const handleDownloadMatrixCsv = async () => {
+    const delimiter = ';'
+    const headers = [
+      'Autor',
+      'Año',
+      'País',
+      'Tipo de estudio',
+      'Población',
+      'Variables',
+      'Resultados',
+      'Conclusiones',
+      'Nivel de evidencia',
+      'Estado',
+    ]
+
+    const rows = exportableMatrixRows.map(({ study, extraction }) => {
+      const authors = Array.isArray(study.authors) && study.authors.length ? study.authors.join(', ') : ''
+      const year = study.year || extraction?.context?.year || ''
+      const country = extraction?.context?.country?.trim() ? extraction.context.country.trim() : ''
+      const studyType = study.studyType ?? ''
+      const population = extraction?.sample?.description?.trim() ? extraction.sample.description.trim() : ''
+      const variables = extraction?.variables?.length ? extraction.variables.join(', ') : ''
+      const results = extraction?.outcomes?.results?.trim() ? extraction.outcomes.results.trim() : ''
+      const conclusions = extraction?.conclusions?.trim() ? extraction.conclusions.trim() : ''
+      const evidenceLevel = study.qualityLevel ?? ''
+
+      const statusKey = extraction?.status ?? 'empty'
+      const statusLabel = statusKey === 'verified' ? 'Verificado' : statusKey === 'not_extractable' ? 'No extraíble' : 'Pendiente'
+
+      return [authors, year, country, studyType, population, variables, results, conclusions, evidenceLevel, statusLabel]
+        .map((value) => toCsvField(value, delimiter))
+        .join(delimiter)
+    })
+
+    const bom = '\ufeff'
+    const content = [headers.map((h) => toCsvField(h, delimiter)).join(delimiter), ...rows].join('\n')
+    const blob = new Blob([bom + content], { type: 'text/csv;charset=utf-8;' })
+    downloadBlob(blob, `matriz-comparativa-${project.id}.csv`)
+  }
+
   return (
     <div className="space-y-6">
       <header className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 flex flex-wrap items-center justify-between gap-4">
@@ -122,21 +183,36 @@ export const Phase5View = () => {
         </div>
       </header>
 
-      <nav className="flex gap-3 border-4 border-black bg-white px-4 py-2 shadow-[6px_6px_0_0_#111]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`px-4 py-2 border-3 border-black font-mono text-xs uppercase tracking-tight transition-all ${
-              activeTab === tab.id
-                ? 'bg-[#FF005C] text-white translate-x-[-2px] translate-y-[-2px]'
-                : 'bg-white text-neutral-900 hover:-translate-y-1 hover:-translate-x-1'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <nav className="flex items-center gap-3 border-4 border-black bg-white px-4 py-2 shadow-[6px_6px_0_0_#111]">
+        <div className="flex gap-3">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={`px-4 py-2 border-3 border-black font-mono text-xs uppercase tracking-tight transition-all ${
+                activeTab === tab.id
+                  ? 'bg-[#FF005C] text-white translate-x-[-2px] translate-y-[-2px]'
+                  : 'bg-white text-neutral-900 hover:-translate-y-1 hover:-translate-x-1'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDownloadMatrixCsv}
+          disabled={activeTab !== 'matrix' || exportableMatrixRows.length === 0}
+          className={`ml-auto px-4 py-2 border-3 border-black font-mono text-xs uppercase tracking-tight transition-all shadow-[4px_4px_0_0_#111] ${
+            activeTab !== 'matrix' || exportableMatrixRows.length === 0
+              ? 'bg-neutral-200 text-neutral-700 opacity-70 cursor-not-allowed'
+              : 'bg-white text-neutral-900 hover:-translate-y-1 hover:-translate-x-1'
+          }`}
+        >
+          Descargar tabla (CSV)
+        </button>
       </nav>
 
       {activeTab === 'list' ? (
@@ -160,7 +236,7 @@ export const Phase5View = () => {
           ) : null}
         </div>
       ) : (
-        <ExtractionMatrixTable rows={matrixRows.filter((row) => row.extraction?.status !== 'not_extractable')} />
+        <ExtractionMatrixTable rows={exportableMatrixRows} />
       )}
 
       <DataEditorModal

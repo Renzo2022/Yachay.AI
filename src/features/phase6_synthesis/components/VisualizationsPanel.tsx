@@ -64,12 +64,22 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
     const { x, y, width, height, index } = props
     const entry = byCountry[index]
     if (!entry) return null
-    const label = `${entry.name} ${(entry.percent * 100).toFixed(0)}%`
+    const label = `${entry.value} (${(entry.percent * 100).toFixed(0)}%)`
+
+    const barWidth = typeof width === 'number' ? width : 0
+    const baseX = typeof x === 'number' ? x : 0
+    const baseY = typeof y === 'number' ? y : 0
+    const baseH = typeof height === 'number' ? height : 0
+
+    const inside = barWidth >= 46
+    const labelX = inside ? baseX + barWidth - 8 : baseX + barWidth + 8
+
     return (
       <text
-        x={(x ?? 0) + (width ?? 0) + 8}
-        y={(y ?? 0) + (height ?? 0) / 2}
+        x={labelX}
+        y={baseY + baseH / 2}
         dominantBaseline="middle"
+        textAnchor={inside ? 'end' : 'start'}
         fill="#111"
         fontSize={11}
         fontFamily="Arial"
@@ -91,9 +101,9 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
             Selección actual: {selectedYear ?? 'Todas'} ({filteredStudies.length}/{studies.length})
           </div>
         </header>
-        <div className="h-64 min-w-0">
+        <div className="h-64 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <BarChart data={stats.byYear} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+            <BarChart data={stats.byYear} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#111" strokeDasharray="3 3" />
               <XAxis dataKey="name" stroke="#111" />
               <YAxis stroke="#111" allowDecimals={false} />
@@ -114,12 +124,18 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
           ) : null}
         </header>
         <div className="max-h-[520px] overflow-auto min-w-0">
-          <div style={{ height: countryChartHeight }} className="min-w-0">
+          <div style={{ height: countryChartHeight }} className="w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <BarChart data={byCountry} layout="vertical" margin={{ top: 0, right: 260, left: 0, bottom: 0 }}>
+              <BarChart data={byCountry} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="#111" strokeDasharray="3 3" />
                 <XAxis type="number" stroke="#111" allowDecimals={false} />
-                <YAxis type="category" dataKey="name" hide />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={170}
+                  stroke="#111"
+                  tick={{ fill: '#111', fontSize: 11, fontFamily: 'Arial' }}
+                />
                 <Bar dataKey="value" stroke="#111" strokeWidth={2} barSize={16} label={renderCountryBarLabel}>
                   {byCountry.map((entry) => (
                     <Cell key={`cell-${entry.name}`} fill={colorForCountry(String(entry.name ?? ''))} />
