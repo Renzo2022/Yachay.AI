@@ -26,6 +26,8 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
     return { ...item, value, percent }
   })
 
+  const countryChartHeight = Math.max(240, byCountry.length * 26 + 20)
+
   const renderCountryBarLabel = (props: any) => {
     const { x, y, width, height, index } = props
     const entry = byCountry[index]
@@ -69,19 +71,19 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
         </div>
       </section>
 
-      <section className="grid lg:grid-cols-2 gap-6">
-        <div className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 min-w-0">
-          <header className="mb-4">
-            <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Distribución geográfica</p>
-            <h3 className="text-2xl font-black text-neutral-900">Países</h3>
-          </header>
-          <div className="h-60 min-w-0">
+      <section className="border-4 border-black bg-white shadow-[10px_10px_0_0_#111] p-6 min-w-0">
+        <header className="mb-4">
+          <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Distribución geográfica</p>
+          <h3 className="text-2xl font-black text-neutral-900">Países</h3>
+        </header>
+        <div className="max-h-[520px] overflow-auto min-w-0">
+          <div style={{ height: countryChartHeight }} className="min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <BarChart data={byCountry} layout="vertical" margin={{ top: 0, right: 140, left: 0, bottom: 0 }}>
+              <BarChart data={byCountry} layout="vertical" margin={{ top: 0, right: 260, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke="#111" strokeDasharray="3 3" />
                 <XAxis type="number" stroke="#111" allowDecimals={false} />
                 <YAxis type="category" dataKey="name" hide />
-                <Bar dataKey="value" stroke="#111" strokeWidth={2} label={renderCountryBarLabel}>
+                <Bar dataKey="value" stroke="#111" strokeWidth={2} barSize={16} label={renderCountryBarLabel}>
                   {byCountry.map((entry, index) => (
                     <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
