@@ -1,7 +1,7 @@
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell, CartesianGrid } from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Cell, CartesianGrid } from 'recharts'
 import type { Manuscript, AnnexesData } from '../types.ts'
 import { PrismaDiagram } from '../../phase3_screening/components/PrismaDiagram.tsx'
-import { ExtractionMatrixTable } from '../../phase5_extraction/components/ExtractionMatrixTable.tsx'
+import ExtractionMatrixTable from '../../phase5_extraction/components/ExtractionMatrixTable.tsx'
 import type { Candidate } from '../../projects/types.ts'
 import type { ExtractionData } from '../../phase5_extraction/types.ts'
 
@@ -50,35 +50,6 @@ const sectionsEn: { field: keyof Manuscript; label: string }[] = [
   { field: 'conclusions', label: 'Conclusions' },
 ]
 
-const renderPieLabel = (props: {
-  cx?: number
-  cy?: number
-  midAngle?: number
-  innerRadius?: number
-  outerRadius?: number
-  percent?: number
-  name?: string
-}) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props
-  if (!cx || !cy || typeof midAngle !== 'number' || innerRadius == null || outerRadius == null) return null
-  if (!name) return null
-
-  const pct = typeof percent === 'number' ? percent : 0
-  if (pct < 0.05) return null
-
-  const RADIAN = Math.PI / 180
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.6
-  const x = cx + radius * Math.cos(-midAngle * RADIAN)
-  const y = cy + radius * Math.sin(-midAngle * RADIAN)
-  const label = `${name} ${(pct * 100).toFixed(0)}%`
-
-  return (
-    <text x={x} y={y} fill="#111" textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="Arial">
-      {label}
-    </text>
-  )
-}
-
 export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keywordsEn, matrixRows }: ManuscriptViewerProps) => {
   const isEnglish = manuscript.language === 'en'
   const sections = isEnglish ? sectionsEn : sectionsEs
@@ -110,14 +81,54 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
     const minor = withPct.filter((row) => row.value <= 1 || row.percent < 0.01)
     const major = withPct.filter((row) => !(row.value <= 1 || row.percent < 0.01))
 
-    if (!minor.length) return { data: items, hasOtherBucket: false }
+    const normalizedMajor = major
+      .slice()
+      .sort((a, b) => b.value - a.value)
+      .map(({ percent, ...rest }) => rest)
 
-    const othersValue = minor.reduce((sum, row) => sum + row.value, 0)
+    const top = normalizedMajor.slice(0, 12)
+    const tail = normalizedMajor.slice(12)
+
+    const othersValue = [...minor, ...tail].reduce((sum, row) => sum + row.value, 0)
+    if (!othersValue) return { data: top, hasOtherBucket: false }
+
     return {
-      data: [...major.map(({ percent, ...rest }) => rest), { name: OTHER_COUNTRY_LABEL, value: othersValue }].sort((a, b) => b.value - a.value),
+      data: [...top, { name: OTHER_COUNTRY_LABEL, value: othersValue }].sort((a, b) => b.value - a.value),
       hasOtherBucket: true,
     }
   })()
+
+  const renderCountryBarLabel = (props: any) => {
+    const { x, y, width, height, index } = props
+    const entry = reportByCountry.data[index]
+    if (!entry) return null
+
+    const total = reportByCountry.data.reduce((sum, row) => sum + (typeof row.value === 'number' ? row.value : 0), 0)
+    const value = typeof entry.value === 'number' ? entry.value : 0
+    const percent = total > 0 ? value / total : 0
+    const label = `${value} (${(percent * 100).toFixed(0)}%)`
+
+    const barWidth = typeof width === 'number' ? width : 0
+    const baseX = typeof x === 'number' ? x : 0
+    const baseY = typeof y === 'number' ? y : 0
+    const baseH = typeof height === 'number' ? height : 0
+    const inside = barWidth >= 46
+    const labelX = inside ? baseX + barWidth - 8 : baseX + barWidth + 8
+
+    return (
+      <text
+        x={labelX}
+        y={baseY + baseH / 2}
+        dominantBaseline="middle"
+        textAnchor={inside ? 'end' : 'start'}
+        fill="#111"
+        fontSize={11}
+        fontFamily="Arial"
+      >
+        {label}
+      </text>
+    )
+  }
 
   return (
     <section className="border-4 border-black bg-white shadow-[16px_16px_0_0_#111] p-6 space-y-6">
@@ -129,7 +140,11 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
           </header>
           <textarea
             className="w-full border-4 border-black bg-neutral-50 p-4 text-lg leading-relaxed text-black placeholder:text-neutral-500"
-            style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}
+            style={{
+              fontFamily: 'Arial',
+              fontSize: 11,
+              textAlign: section.field === 'abstract' ? 'center' : 'justify',
+            }}
             value={(manuscript[section.field] as string) ?? ''}
             rows={8}
             onChange={(event) => onChange(section.field, event.target.value)}
@@ -146,7 +161,7 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
                     <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Abstract (EN)</p>
                     <textarea
                       className="w-full border-3 border-black bg-neutral-50 p-3 text-black placeholder:text-neutral-500"
-                      style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}
+                      style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'center' }}
                       value={manuscript.abstractEn ?? ''}
                       rows={6}
                       onChange={(event) => onChange('abstractEn', event.target.value)}
@@ -193,7 +208,7 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
                       </em>
                     </strong>
                   </p>
-                  <div id="phase7-table-matrix" className="bg-white">
+                  <div id="phase7-table-matrix" className="bg-white select-text">
                     <ExtractionMatrixTable rows={matrixRows ?? []} variant="compact" />
                   </div>
                   <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
@@ -238,23 +253,22 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
                   </p>
                   <div id="phase7-fig-by-country" className="bg-white h-64 min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                      <PieChart>
-                        <Pie
-                          data={reportByCountry.data}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={0}
-                          outerRadius={90}
+                      <BarChart data={reportByCountry.data} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="#111" strokeDasharray="3 3" />
+                        <XAxis type="number" stroke="#111" allowDecimals={false} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={170}
                           stroke="#111"
-                          strokeWidth={2}
-                          labelLine={false}
-                          label={renderPieLabel}
-                        >
+                          tick={{ fill: '#111', fontSize: 11, fontFamily: 'Arial' }}
+                        />
+                        <Bar dataKey="value" stroke="#111" strokeWidth={2} barSize={16} label={renderCountryBarLabel}>
                           {reportByCountry.data.map((entry) => (
                             <Cell key={`cell-${entry.name}`} fill={colorForCountry(String(entry.name ?? ''))} />
                           ))}
-                        </Pie>
-                      </PieChart>
+                        </Bar>
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                   {reportByCountry.hasOtherBucket ? (
@@ -279,11 +293,11 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
       <article className="space-y-3">
         <header>
           <p className="text-xs font-mono uppercase tracking-[0.4em] text-[#EF4444]">Referencias</p>
-          <h3 className="text-2xl font-black text-black">Bibliografía</h3>
+          <h3 className="text-2xl font-black text-black">Referencias bibliográficas</h3>
         </header>
         <textarea
           className="w-full border-4 border-black bg-neutral-50 p-4 text-lg leading-relaxed text-black placeholder:text-neutral-500"
-          style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}
+          style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}
           value={manuscript.references.join('\n')}
           rows={6}
           onChange={(event) => onChange('references', event.target.value.split('\n').map((line) => line.trim()).filter(Boolean))}

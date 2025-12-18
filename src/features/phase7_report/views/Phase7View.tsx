@@ -67,7 +67,7 @@ export const Phase7View = () => {
             </h2>
             <div className="mt-4 flex flex-col items-center gap-2">
               <input
-                className="w-full max-w-xl border-3 border-black bg-white px-3 py-2 text-center"
+                className="w-full max-w-xl border-3 border-black bg-white px-3 py-2 text-center text-black placeholder:text-neutral-500"
                 style={{ fontFamily: 'Arial', fontSize: 11 }}
                 placeholder="Nombre del autor"
                 value={manuscript?.authorName ?? ''}
@@ -77,7 +77,7 @@ export const Phase7View = () => {
               />
               <div className="flex w-full max-w-xl items-center gap-2">
                 <input
-                  className="flex-1 border-3 border-black bg-white px-3 py-2 text-center"
+                  className="flex-1 border-3 border-black bg-white px-3 py-2 text-center text-black placeholder:text-neutral-500"
                   style={{ fontFamily: 'Arial', fontSize: 11 }}
                   placeholder="ORCID (0000-0000-0000-0000 o URL)"
                   value={manuscript?.authorOrcid ?? ''}
@@ -107,6 +107,7 @@ export const Phase7View = () => {
             keywords={keywords}
             keywordsEn={keywordsEn}
             matrixRowCount={matrixRows.length}
+            matrixRows={matrixRows}
             onRegenerate={async (language: ManuscriptLanguage) => {
               await regenerateManuscript(language)
             }}

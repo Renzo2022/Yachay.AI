@@ -510,13 +510,22 @@ const handleCohereManuscript = async (req, res) => {
     const prisma = aggregated?.prisma ?? {};
     const phase1 = aggregated?.phase1 ?? {};
 
+    const excludedStudyIds = new Set(
+      extractionMatrix
+        .filter((entry) => entry?.status === "not_extractable" && typeof entry?.studyId === "string")
+        .map((entry) => String(entry.studyId))
+        .filter(Boolean),
+    );
+
+    const reportStudies = includedStudies.filter((study) => !excludedStudyIds.has(String(study?.id ?? "")));
+
     const matrixMap = new Map(
       extractionMatrix
         .filter((entry) => entry && typeof entry.studyId === "string")
         .map((entry) => [entry.studyId, entry]),
     );
 
-    const compactIncluded = includedStudies.slice(0, 60).map((study) => {
+    const compactIncluded = reportStudies.slice(0, 60).map((study) => {
       const entry = matrixMap.get(String(study?.id ?? ""));
       const evidence = Array.isArray(entry?.evidence) ? entry.evidence.slice(0, 4) : [];
       return {
@@ -542,7 +551,7 @@ const handleCohereManuscript = async (req, res) => {
     });
 
     const byYearMap = new Map();
-    includedStudies.forEach((study) => {
+    reportStudies.forEach((study) => {
       const year = Number(study?.year);
       if (!Number.isFinite(year)) return;
       byYearMap.set(year, (byYearMap.get(year) ?? 0) + 1);
@@ -552,12 +561,14 @@ const handleCohereManuscript = async (req, res) => {
       .map(([year, count]) => ({ year, count }));
 
     const byCountryMap = new Map();
-    extractionMatrix.forEach((entry) => {
+    extractionMatrix
+      .filter((entry) => !excludedStudyIds.has(String(entry?.studyId ?? "")))
+      .forEach((entry) => {
       const raw = String(entry?.context?.country ?? "").trim();
       if (!raw) return;
       const key = raw;
       byCountryMap.set(key, (byCountryMap.get(key) ?? 0) + 1);
-    });
+      });
     const byCountry = Array.from(byCountryMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12)
@@ -576,6 +587,7 @@ const handleCohereManuscript = async (req, res) => {
         byCountry,
       },
       includedStudies: compactIncluded,
+      reportStudiesCount: reportStudies.length,
       synthesis: {
         narrative: synthesis?.narrative ?? "",
         themes: Array.isArray(synthesis?.themes) ? synthesis.themes.slice(0, 12) : [],
@@ -605,11 +617,12 @@ Rules:
 - keywordsEn: same list as keywords (English).
 - Introduction: 250–400 words.
 - Methods: describe PRISMA process, screening, quality assessment and extraction.
-- Results: summarize PRISMA, characteristics and findings. Must include at least 4 clearly identifiable paragraphs/sentences:
-  1) "In Figure 1..." describing PRISMA counts (identified, duplicates, withoutAbstract, screened, included).
-  2) "In Table 1..." describing what the comparative matrix summarizes (designs, populations, variables and results).
-  3) "In Figure 2..." describing the pattern by year using figures.byYear.
-  4) "In Figure 3..." describing the distribution by country using figures.byCountry.
+- Results: summarize PRISMA, characteristics and findings. It MUST include at least 4 clearly identifiable paragraphs, each 4–6 sentences (not bullet points):
+  1) Start with "In Figure 1..." and describe PRISMA counts (identified, duplicates, withoutAbstract, screened, included). Explain what each stage means.
+  2) Start with "In Table 1..." and describe what the comparative matrix summarizes (designs, populations, variables, outcomes). Mention patterns/heterogeneity.
+  3) Start with "In Figure 2..." and describe the temporal pattern using figures.byYear (trend, peaks, possible explanations without inventing).
+  4) Start with "In Figure 3..." and describe the distribution by country using figures.byCountry (concentration, diversity, implications).
+  Add in-text APA citations inside these paragraphs whenever you refer to a concrete finding (use ONLY authors/years from includedStudies).
   Do not create an annexes section.
 - Discussion: interpretation, limitations and implications.
 - Conclusions: 80–150 words.
@@ -637,11 +650,12 @@ Reglas:
 - keywordsEn: 5–8 keywords en inglés basadas en el abstractEn.
 - Introduction: 250–400 palabras.
 - Methods: describe el proceso PRISMA, cribado, evaluación de calidad y extracción.
-- Results: resume PRISMA, características y hallazgos. Debe contener al menos 4 párrafos/campos claramente identificables en el texto:
-  1) "En la Figura 1..." describiendo PRISMA con los conteos (identified, duplicates, withoutAbstract, screened, included).
-  2) "En la Tabla 1..." describiendo qué resume la matriz comparativa (diseños, poblaciones, variables y resultados).
-  3) "En la Figura 2..." describiendo el patrón por año usando figures.byYear.
-  4) "En la Figura 3..." describiendo la distribución por país usando figures.byCountry.
+- Results: resume PRISMA, características y hallazgos. DEBE contener al menos 4 párrafos claramente identificables, cada uno de 4–6 oraciones (no viñetas):
+  1) Inicia con "En la Figura 1..." y describe PRISMA con los conteos (identified, duplicates, withoutAbstract, screened, included). Explica el significado de cada etapa.
+  2) Inicia con "En la Tabla 1..." y describe qué resume la matriz comparativa (diseños, poblaciones, variables, resultados). Señala patrones/heterogeneidad.
+  3) Inicia con "En la Figura 2..." y describe el patrón temporal usando figures.byYear (tendencia, picos, explicación plausible sin inventar).
+  4) Inicia con "En la Figura 3..." y describe la distribución por país usando figures.byCountry (concentración, diversidad, implicaciones).
+  Incluye citas APA dentro de estos párrafos cuando menciones un hallazgo concreto (usa SOLO autores/años presentes en includedStudies).
   No crees una sección de anexos.
 - Discussion: interpreta, limitaciones y implicaciones.
 - Conclusions: 80–150 palabras.

@@ -1,10 +1,28 @@
 import { useState } from 'react'
-import { AlignmentType, Document, Packer, Paragraph, TextRun, ImageRun, ExternalHyperlink } from 'docx'
+import {
+  AlignmentType,
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  ImageRun,
+  ExternalHyperlink,
+  LineRuleType,
+  Table,
+  TableRow,
+  TableCell,
+  BorderStyle,
+  WidthType,
+  UnderlineType,
+  VerticalAlign,
+} from 'docx'
 import type { IParagraphOptions } from 'docx'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import type { Manuscript } from '../types.ts'
 import type { ManuscriptLanguage } from '../types.ts'
+import type { Candidate } from '../../projects/types.ts'
+import type { ExtractionData } from '../../phase5_extraction/types.ts'
 
 interface ExportToolbarProps {
   manuscript: Manuscript
@@ -13,6 +31,7 @@ interface ExportToolbarProps {
   keywords?: string[]
   keywordsEn?: string[]
   matrixRowCount?: number
+  matrixRows?: Array<{ study: Candidate; extraction?: ExtractionData }>
   onRegenerate?: (language: ManuscriptLanguage) => Promise<void>
   regenerating?: boolean
 }
@@ -78,6 +97,7 @@ export const ExportToolbar = ({
   keywords,
   keywordsEn,
   matrixRowCount,
+  matrixRows,
   onRegenerate,
   regenerating,
 }: ExportToolbarProps) => {
@@ -110,47 +130,7 @@ export const ExportToolbar = ({
   const fig3Label = isEnglish ? 'Figure 3: Distribution by country' : 'Figura 3: Distribución por país'
   const sourceText = isEnglish ? "Source: Authors' elaboration" : 'Fuente: Elaboración propia'
 
-  const handleMarkdownExport = () => {
-    const mdBlocks: string[] = []
-    mdBlocks.push(`# ${reportTitle || projectName}`)
-    if (authorName) {
-      const orcidPart = orcidUrl ? ` [iD](${orcidUrl})` : ''
-      mdBlocks.push(`${authorName}${orcidPart}`)
-    }
-
-    if (isEnglish) {
-      mdBlocks.push(`## Abstract\n${manuscript.abstract}`)
-      mdBlocks.push(`**Keywords:** ${keywordsForEnglish || '—'}`)
-      mdBlocks.push(`## Introduction\n${manuscript.introduction}`)
-      mdBlocks.push(`## Methods\n${manuscript.methods}`)
-      mdBlocks.push(`## Results\n${manuscript.results}`)
-      mdBlocks.push(`### **Figure 1.** PRISMA 2020 flow diagram\n***${sourceText}***`)
-      mdBlocks.push(`### **Table 1.** Comparative matrix (summary)\n***${sourceText}***`)
-      mdBlocks.push(`### **Figure 2.** Distribution by year\n***${sourceText}***`)
-      mdBlocks.push(`### **Figure 3.** Distribution by country\n***${sourceText}***`)
-      mdBlocks.push(`## Discussion\n${manuscript.discussion}`)
-      mdBlocks.push(`## Conclusions\n${manuscript.conclusions}`)
-    } else {
-      mdBlocks.push(`## Resumen\n${manuscript.abstract}`)
-      mdBlocks.push(`**Palabras clave:** ${keywordsLine || '—'}`)
-      mdBlocks.push(`## Abstract\n${manuscript.abstractEn || ''}`)
-      mdBlocks.push(`**Keywords:** ${keywordsForEnglish || '—'}`)
-      mdBlocks.push(`## Introducción\n${manuscript.introduction}`)
-      mdBlocks.push(`## Métodos\n${manuscript.methods}`)
-      mdBlocks.push(`## Resultados\n${manuscript.results}`)
-      mdBlocks.push(`### **Figura 1.** Diagrama PRISMA 2020\n***${sourceText}***`)
-      mdBlocks.push(`### **Tabla 1.** Matriz comparativa (resumen)\n***${sourceText}***`)
-      mdBlocks.push(`### **Figura 2.** Distribución por año\n***${sourceText}***`)
-      mdBlocks.push(`### **Figura 3.** Distribución por país\n***${sourceText}***`)
-      mdBlocks.push(`## Discusión\n${manuscript.discussion}`)
-      mdBlocks.push(`## Conclusiones\n${manuscript.conclusions}`)
-    }
-
-    mdBlocks.push(`## ${isEnglish ? 'References' : 'Referencias'}\n${manuscript.references.map((ref, idx) => `${idx + 1}. ${ref}`).join('\n')}`)
-
-    const md = mdBlocks.join('\n\n')
-    downloadFile(md, `${baseName}.md`, 'text/markdown')
-  }
+  const hasMatrixRows = Array.isArray(matrixRows) && matrixRows.length > 0
 
   const handleWordExport = async () => {
     setDownloading(true)
@@ -164,7 +144,7 @@ export const ExportToolbar = ({
         byCountry: await captureElementPng('phase7-fig-by-country'),
       }
 
-      const matrixCanvas = matrixRowCount ? await captureElementCanvas('phase7-table-matrix') : null
+      const matrixCanvas = !hasMatrixRows && matrixRowCount ? await captureElementCanvas('phase7-table-matrix') : null
       const matrixSlices = matrixCanvas
         ? sliceCanvas(matrixCanvas, Math.floor((650 * matrixCanvas.width) / 560))
         : []
@@ -195,7 +175,7 @@ export const ExportToolbar = ({
           .map((chunk) =>
             new Paragraph({
               children: [new TextRun({ text: chunk, font: fontName, size: fontSize })],
-              spacing: { after: 200 },
+              spacing: { after: 200, line: 480, lineRule: LineRuleType.AUTO },
               alignment,
             }),
           )
@@ -247,15 +227,215 @@ export const ExportToolbar = ({
         return paragraphs
       }
 
+      const surnameParticles = new Set(['de', 'del', 'la', 'las', 'los', 'da', 'do', 'dos', 'das', 'van', 'von'])
+
+      const extractSurnameForCitation = (raw: string) => {
+        const cleaned = String(raw ?? '').replace(/\s+/g, ' ').trim()
+        if (!cleaned) return ''
+
+        const commaIndex = cleaned.indexOf(',')
+        if (commaIndex > 0) return cleaned.slice(0, commaIndex).trim()
+
+        const tokens = cleaned.split(' ').filter(Boolean)
+        if (!tokens.length) return ''
+
+        const looksLikeInitial = (token: string) => {
+          const t = String(token ?? '').trim()
+          if (!t) return false
+          if (t.endsWith('.') && t.replace(/\./g, '').length <= 3) return true
+          if (/^[A-Z]$/.test(t)) return true
+          return false
+        }
+
+        let end = tokens.length - 1
+        while (end > 0 && looksLikeInitial(tokens[end])) end -= 1
+        let start = end
+        while (start - 1 >= 0 && surnameParticles.has(tokens[start - 1].toLowerCase())) start -= 1
+        if (start < end - 2) start = end - 2
+        if (start < 0) start = 0
+        return tokens.slice(start, end + 1).join(' ').trim()
+      }
+
+      const buildAuthorYearCitation = (authors: unknown, year: unknown) => {
+        const yearText = year ? String(year) : 'n.d.'
+        const list = Array.isArray(authors) ? authors.map((name) => String(name ?? '').trim()).filter(Boolean) : []
+        if (!list.length) return `(${yearText})`
+        if (list.length === 1) {
+          const a = extractSurnameForCitation(list[0]) || list[0]
+          return `(${a}, ${yearText})`
+        }
+        if (list.length === 2) {
+          const a = extractSurnameForCitation(list[0]) || list[0]
+          const b = extractSurnameForCitation(list[1]) || list[1]
+          return `(${a} & ${b}, ${yearText})`
+        }
+        const a = extractSurnameForCitation(list[0]) || list[0]
+        return `(${a}, et al., ${yearText})`
+      }
+
+      const buildMatrixDocxTable = () => {
+        if (!hasMatrixRows) return null
+
+        const widths = [420, 1700, 1100, 1700, 1450, 2990]
+
+        const headerCell = (text: string, width: number, alignment: IParagraphOptions['alignment'] = AlignmentType.LEFT) =>
+          new TableCell({
+            width: { size: width, type: WidthType.DXA },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text, bold: true, font: fontName, size: fontSize })],
+                alignment,
+                spacing: { after: 0, line: 480, lineRule: LineRuleType.AUTO },
+              }),
+            ],
+          })
+
+        const bodyCell = (text: string, width: number, alignment: IParagraphOptions['alignment'] = AlignmentType.LEFT) =>
+          new TableCell({
+            width: { size: width, type: WidthType.DXA },
+            verticalAlign: VerticalAlign.TOP,
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text, font: fontName, size: fontSize })],
+                alignment,
+                spacing: { after: 0, line: 480, lineRule: LineRuleType.AUTO },
+              }),
+            ],
+          })
+
+        const bodyCellWithTitle = (citation: string, title: string, width: number) =>
+          new TableCell({
+            width: { size: width, type: WidthType.DXA },
+            verticalAlign: VerticalAlign.TOP,
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: citation, bold: true, font: fontName, size: fontSize })],
+                spacing: { after: 0, line: 480, lineRule: LineRuleType.AUTO },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: title, font: fontName, size: 20, color: '444444' })],
+                spacing: { after: 0, line: 480, lineRule: LineRuleType.AUTO },
+              }),
+            ],
+          })
+
+        const header = new TableRow({
+          tableHeader: true,
+          cantSplit: true,
+          children: [
+            headerCell('#', widths[0], AlignmentType.CENTER),
+            headerCell(isEnglish ? 'Author/Year' : 'Autor/Año', widths[1]),
+            headerCell(isEnglish ? 'Study type' : 'Tipo de estudio', widths[2]),
+            headerCell(isEnglish ? 'Population' : 'Población', widths[3]),
+            headerCell(isEnglish ? 'Variables' : 'Variables', widths[4]),
+            headerCell(isEnglish ? 'Results' : 'Resultados', widths[5]),
+          ],
+        })
+
+        const body = matrixRows!.map(({ study, extraction }, idx) => {
+          const studyType = String(study?.studyType ?? '—') || '—'
+          const population = extraction?.sample?.description?.trim() ? extraction.sample.description.trim() : '—'
+          const variables = extraction?.variables?.length ? extraction.variables.join(', ') : '—'
+          const results = extraction?.outcomes?.results?.trim() ? extraction.outcomes.results.trim() : '—'
+          const year = (study as any)?.year || (extraction as any)?.context?.year || ''
+          const citation = buildAuthorYearCitation((study as any)?.authors, year)
+          const title = String((study as any)?.title ?? '').trim().slice(0, 220) || '—'
+
+          return new TableRow({
+            cantSplit: true,
+            children: [
+              bodyCell(String(idx + 1), widths[0], AlignmentType.CENTER),
+              bodyCellWithTitle(citation, title, widths[1]),
+              bodyCell(studyType, widths[2]),
+              bodyCell(population, widths[3]),
+              bodyCell(variables, widths[4]),
+              bodyCell(results, widths[5]),
+            ],
+          })
+        })
+
+        return new Table({
+          rows: [header, ...body],
+          width: { size: 9360, type: WidthType.DXA },
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+            left: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+            right: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+            insideHorizontal: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+            insideVertical: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+          },
+        })
+      }
+
+      const buildReferenceChildren = (reference: string) => {
+        const text = String(reference ?? '')
+        const urlRegex = /(https?:\/\/[^\s)]+)([).,;:]?)/gi
+        const children: Array<TextRun | ExternalHyperlink> = []
+
+        let lastIndex = 0
+        for (const match of text.matchAll(urlRegex)) {
+          const index = match.index ?? 0
+          const url = match[1] ?? ''
+          const suffix = match[2] ?? ''
+
+          if (index > lastIndex) {
+            children.push(new TextRun({ text: text.slice(lastIndex, index), font: fontName, size: fontSize }))
+          }
+
+          const cleanUrl = String(url).replace(/[).,;:]+$/g, '')
+          children.push(
+            new ExternalHyperlink({
+              link: cleanUrl,
+              children: [
+                new TextRun({
+                  text: cleanUrl,
+                  font: fontName,
+                  size: fontSize,
+                  color: '0563C1',
+                  underline: { type: UnderlineType.SINGLE },
+                }),
+              ],
+            }),
+          )
+
+          if (suffix) {
+            children.push(new TextRun({ text: suffix, font: fontName, size: fontSize }))
+          }
+
+          lastIndex = index + String(match[0] ?? '').length
+        }
+
+        if (lastIndex < text.length) {
+          children.push(new TextRun({ text: text.slice(lastIndex), font: fontName, size: fontSize }))
+        }
+
+        if (!children.length) {
+          children.push(new TextRun({ text, font: fontName, size: fontSize }))
+        }
+
+        return children
+      }
+
       const buildResultsAssets = () => {
-        const children: Paragraph[] = []
+        const children: Array<Paragraph | Table> = []
 
         children.push(captionTitleParagraph(fig1Label))
         children.push(...toImageParagraphs(resultsImages.prisma))
         children.push(sourceParagraph())
 
         children.push(captionTitleParagraph(table1Label))
-        if (matrixSlices.length) {
+        const matrixTable = buildMatrixDocxTable()
+        if (matrixTable) {
+          children.push(matrixTable)
+          children.push(
+            new Paragraph({
+              children: [],
+              spacing: { after: 200 },
+            }),
+          )
+        } else if (matrixSlices.length) {
           children.push(...toImageParagraphsPaged(matrixSlices))
         } else {
           children.push(
@@ -320,19 +500,23 @@ export const ExportToolbar = ({
                 const titleParagraph = new Paragraph({
                   children: [new TextRun({ text: section.title, bold: true, font: fontName, size: fontSize })],
                   spacing: { after: 120 },
+                  pageBreakBefore: section.field === 'introduction',
                 })
+
+                const contentAlignment =
+                  section.field === 'abstract' || section.field === 'abstractEn' ? AlignmentType.CENTER : AlignmentType.JUSTIFIED
 
                 if (section.keywordsLabel) {
                   return [
                     titleParagraph,
-                    ...toParagraphs(content, AlignmentType.JUSTIFIED),
+                    ...toParagraphs(content, contentAlignment),
                     new Paragraph({
                       children: [
                         new TextRun({ text: `${section.keywordsLabel}: `, bold: true, font: fontName, size: fontSize }),
                         new TextRun({ text: section.keywordsValue || '—', font: fontName, size: fontSize }),
                       ],
-                      spacing: { after: 200 },
-                      alignment: AlignmentType.JUSTIFIED,
+                      spacing: { after: 200, line: 480, lineRule: LineRuleType.AUTO },
+                      alignment: contentAlignment,
                     }),
                   ]
                 }
@@ -340,32 +524,35 @@ export const ExportToolbar = ({
                 if (section.field === 'results') {
                   return [
                     titleParagraph,
-                    ...toParagraphs(content, AlignmentType.JUSTIFIED),
+                    ...toParagraphs(content, contentAlignment),
                     ...buildResultsAssets(),
                   ]
                 }
 
                 return [
                   titleParagraph,
-                  ...toParagraphs(content, AlignmentType.JUSTIFIED),
+                  ...toParagraphs(content, contentAlignment),
                 ]
               }),
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: isEnglish ? 'References' : 'Referencias',
+                    text: isEnglish ? 'References' : 'Referencias bibliográficas',
                     bold: true,
                     font: fontName,
                     size: fontSize,
                   }),
                 ],
+                pageBreakBefore: true,
+                alignment: AlignmentType.LEFT,
                 spacing: { after: 120 },
               }),
               ...manuscript.references.map(
-                (reference, index) =>
+                (reference) =>
                   new Paragraph({
-                    children: [new TextRun({ text: `${index + 1}. ${reference}`, font: fontName, size: fontSize })],
-                    spacing: { after: 100 },
+                    children: buildReferenceChildren(reference),
+                    spacing: { line: 480, lineRule: LineRuleType.AUTO },
+                    indent: { left: 720, hanging: 720 },
                     alignment: AlignmentType.JUSTIFIED,
                   }),
               ),
@@ -423,6 +610,148 @@ export const ExportToolbar = ({
       cursorY += 18
     }
 
+    const addPageBreak = () => {
+      pdf.addPage()
+      cursorY = 60
+    }
+
+    const surnameParticles = new Set(['de', 'del', 'la', 'las', 'los', 'da', 'do', 'dos', 'das', 'van', 'von'])
+
+    const extractSurnameForCitation = (raw: string) => {
+      const cleaned = String(raw ?? '').replace(/\s+/g, ' ').trim()
+      if (!cleaned) return ''
+      const commaIndex = cleaned.indexOf(',')
+      if (commaIndex > 0) return cleaned.slice(0, commaIndex).trim()
+      const tokens = cleaned.split(' ').filter(Boolean)
+      if (!tokens.length) return ''
+
+      const looksLikeInitial = (token: string) => {
+        const t = String(token ?? '').trim()
+        if (!t) return false
+        if (t.endsWith('.') && t.replace(/\./g, '').length <= 3) return true
+        if (/^[A-Z]$/.test(t)) return true
+        return false
+      }
+
+      let end = tokens.length - 1
+      while (end > 0 && looksLikeInitial(tokens[end])) end -= 1
+      let start = end
+      while (start - 1 >= 0 && surnameParticles.has(tokens[start - 1].toLowerCase())) start -= 1
+      if (start < end - 2) start = end - 2
+      if (start < 0) start = 0
+      return tokens.slice(start, end + 1).join(' ').trim()
+    }
+
+    const buildAuthorYearCitation = (authors: unknown, year: unknown) => {
+      const yearText = year ? String(year) : 'n.d.'
+      const list = Array.isArray(authors) ? authors.map((name) => String(name ?? '').trim()).filter(Boolean) : []
+      if (!list.length) return `(${yearText})`
+      if (list.length === 1) {
+        const a = extractSurnameForCitation(list[0]) || list[0]
+        return `(${a}, ${yearText})`
+      }
+      if (list.length === 2) {
+        const a = extractSurnameForCitation(list[0]) || list[0]
+        const b = extractSurnameForCitation(list[1]) || list[1]
+        return `(${a} & ${b}, ${yearText})`
+      }
+      const a = extractSurnameForCitation(list[0]) || list[0]
+      return `(${a}, et al., ${yearText})`
+    }
+
+    const addMatrixFromRows = () => {
+      if (!hasMatrixRows) {
+        addJustifiedParagraph('(Sin datos)')
+        return
+      }
+
+      const tableWidths = [28, 118, 80, 110, 80, maxWidth - (28 + 118 + 80 + 110 + 80)]
+      const lineHeight = 14
+      const padX = 3
+      const padY = 4
+
+      const drawRow = (cells: Array<Array<{ text: string; style: 'normal' | 'bold' }>>, isHeader: boolean) => {
+        const maxLines = cells.reduce((max, cell) => Math.max(max, cell.length), 1)
+        const rowHeight = padY * 2 + maxLines * lineHeight
+
+        if (cursorY + rowHeight > 780) {
+          addPageBreak()
+          drawHeader()
+        }
+
+        let x = marginX
+        const yTop = cursorY
+
+        pdf.setDrawColor(0, 0, 0)
+        pdf.setLineWidth(0.6)
+
+        for (let col = 0; col < cells.length; col += 1) {
+          const width = tableWidths[col] ?? 60
+          pdf.rect(x, yTop, width, rowHeight)
+          const lines = cells[col]
+          let yText = yTop + padY + lineHeight
+          for (let i = 0; i < lines.length; i += 1) {
+            const line = lines[i]
+            setFont(isHeader || line.style === 'bold' ? 'bold' : 'normal')
+            pdf.setTextColor(0, 0, 0)
+            pdf.text(line.text, x + padX, yText)
+            yText += lineHeight
+          }
+          x += width
+        }
+
+        cursorY += rowHeight
+      }
+
+      const wrap = (text: string, width: number) =>
+        pdf
+          .splitTextToSize(String(text ?? ''), Math.max(10, width - padX * 2))
+          .map((line: string) => String(line))
+
+      const drawHeader = () => {
+        const headerCells: Array<Array<{ text: string; style: 'normal' | 'bold' }>> = [
+          [{ text: '#', style: 'bold' }],
+          [{ text: isEnglish ? 'Author/Year' : 'Autor/Año', style: 'bold' }],
+          [{ text: isEnglish ? 'Study type' : 'Tipo de estudio', style: 'bold' }],
+          [{ text: isEnglish ? 'Population' : 'Población', style: 'bold' }],
+          [{ text: isEnglish ? 'Variables' : 'Variables', style: 'bold' }],
+          [{ text: isEnglish ? 'Results' : 'Resultados', style: 'bold' }],
+        ]
+        drawRow(headerCells, true)
+      }
+
+      drawHeader()
+
+      for (let idx = 0; idx < matrixRows!.length; idx += 1) {
+        const row = matrixRows![idx]
+        const year = (row.study as any)?.year || (row.extraction as any)?.context?.year || ''
+        const citation = buildAuthorYearCitation((row.study as any)?.authors, year)
+        const title = String((row.study as any)?.title ?? '').trim().slice(0, 220) || '—'
+        const authorLines: Array<{ text: string; style: 'normal' | 'bold' }> = [
+          { text: citation, style: 'bold' },
+          ...wrap(title, tableWidths[1] ?? 120).slice(0, 3).map((t: string) => ({ text: t, style: 'normal' as const })),
+        ]
+
+        const studyType = String(row.study?.studyType ?? '—') || '—'
+        const population = row.extraction?.sample?.description?.trim() ? row.extraction.sample.description.trim() : '—'
+        const variables = row.extraction?.variables?.length ? row.extraction.variables.join(', ') : '—'
+        const results = row.extraction?.outcomes?.results?.trim() ? row.extraction.outcomes.results.trim() : '—'
+
+        const cells: Array<Array<{ text: string; style: 'normal' | 'bold' }>> = [
+          [{ text: String(idx + 1), style: 'normal' }],
+          authorLines,
+          wrap(studyType, tableWidths[2] ?? 80).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(population, tableWidths[3] ?? 110).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(variables, tableWidths[4] ?? 80).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(results, tableWidths[5] ?? 120).slice(0, 6).map((t: string) => ({ text: t, style: 'normal' as const })),
+        ]
+
+        drawRow(cells, false)
+      }
+
+      cursorY += 10
+    }
+
     const addJustifiedParagraph = (text: string) => {
       setFont('normal')
       const paragraphs = String(text ?? '')
@@ -430,7 +759,7 @@ export const ExportToolbar = ({
         .map((chunk) => chunk.trim())
         .filter(Boolean)
 
-      const lineHeight = 14
+      const lineHeight = 22
 
       for (const para of paragraphs) {
         const words = para.split(/\s+/).filter(Boolean)
@@ -476,6 +805,26 @@ export const ExportToolbar = ({
           }
         }
         flushLine(false)
+        cursorY += 6
+      }
+    }
+
+    const addCenteredParagraph = (text: string) => {
+      setFont('normal')
+      const paragraphs = String(text ?? '')
+        .split(/\n{2,}/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean)
+
+      const lineHeight = 22
+
+      for (const para of paragraphs) {
+        const lines = pdf.splitTextToSize(para, maxWidth)
+        for (const line of lines) {
+          ensureSpace(lineHeight)
+          pdf.text(String(line), pageWidth / 2, cursorY, { align: 'center' })
+          cursorY += lineHeight
+        }
         cursorY += 6
       }
     }
@@ -575,8 +924,15 @@ export const ExportToolbar = ({
 
     for (const section of sections) {
       const content = String((manuscript as any)[section.field] ?? '')
+      if (section.field === 'introduction') {
+        addPageBreak()
+      }
       addHeading(section.title)
-      addJustifiedParagraph(content)
+      if (section.field === 'abstract' || section.field === 'abstractEn') {
+        addCenteredParagraph(content)
+      } else {
+        addJustifiedParagraph(content)
+      }
 
       if (section.keywordsLabel) {
         setFont('bold')
@@ -592,7 +948,9 @@ export const ExportToolbar = ({
         addSource()
 
         addCaption(table1Label)
-        if (matrixRowCount) {
+        if (hasMatrixRows) {
+          addMatrixFromRows()
+        } else if (matrixRowCount) {
           await addMatrixFromElementPaged('phase7-table-matrix')
         } else {
           addJustifiedParagraph('(Sin datos)')
@@ -609,8 +967,106 @@ export const ExportToolbar = ({
       }
     }
 
-    addHeading(isEnglish ? 'References' : 'Referencias')
-    manuscript.references.forEach((reference, index) => addJustifiedParagraph(`${index + 1}. ${reference}`))
+    addPageBreak()
+    addHeading(isEnglish ? 'References' : 'Referencias bibliográficas')
+
+    const addHangingReference = (text: string) => {
+      setFont('normal')
+      const lines = pdf.splitTextToSize(String(text ?? ''), maxWidth)
+      const lineHeight = 22
+      const urlRegex = /(https?:\/\/[^\s)]+)([).,;:]?)/gi
+
+      const drawJustifiedPlainLine = (line: string, x: number, width: number) => {
+        const words = String(line ?? '')
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+        if (words.length <= 1) {
+          pdf.text(String(line), x, cursorY)
+          return
+        }
+
+        const joined = words.join(' ')
+        const joinedWidth = pdf.getTextWidth(joined)
+        const gaps = words.length - 1
+        const extra = Math.max(0, width - joinedWidth)
+        const extraPerGap = extra / gaps
+
+        let xCursor = x
+        for (let w = 0; w < words.length; w += 1) {
+          const word = words[w]
+          pdf.text(word, xCursor, cursorY)
+          xCursor += pdf.getTextWidth(word)
+          if (w < words.length - 1) {
+            xCursor += pdf.getTextWidth(' ') + extraPerGap
+          }
+        }
+      }
+
+      const drawLineWithLinks = (line: string, x: number) => {
+        let xCursor = x
+        let lastIndex = 0
+        for (const match of String(line ?? '').matchAll(urlRegex)) {
+          const index = match.index ?? 0
+          const url = match[1] ?? ''
+          const suffix = match[2] ?? ''
+          const before = String(line).slice(lastIndex, index)
+          if (before) {
+            pdf.setTextColor(0, 0, 0)
+            pdf.text(before, xCursor, cursorY)
+            xCursor += pdf.getTextWidth(before)
+          }
+
+          const cleanUrl = String(url).replace(/[).,;:]+$/g, '')
+          pdf.setTextColor(0x05, 0x63, 0xc1)
+          pdf.text(cleanUrl, xCursor, cursorY)
+          const urlWidth = pdf.getTextWidth(cleanUrl)
+          pdf.link(xCursor, cursorY - 11, urlWidth, 14, { url: cleanUrl })
+          pdf.setDrawColor(0x05, 0x63, 0xc1)
+          pdf.line(xCursor, cursorY + 2, xCursor + urlWidth, cursorY + 2)
+          xCursor += urlWidth
+
+          if (suffix) {
+            pdf.setTextColor(0, 0, 0)
+            pdf.text(suffix, xCursor, cursorY)
+            xCursor += pdf.getTextWidth(suffix)
+          }
+
+          lastIndex = index + String(match[0] ?? '').length
+        }
+
+        const tail = String(line ?? '').slice(lastIndex)
+        if (tail) {
+          pdf.setTextColor(0, 0, 0)
+          pdf.text(tail, xCursor, cursorY)
+        }
+        pdf.setTextColor(0, 0, 0)
+      }
+
+      lines.forEach((line: string, idx: number) => {
+        ensureSpace(lineHeight)
+        const indent = idx === 0 ? 0 : 18
+        const x = marginX + indent
+        const width = maxWidth - indent
+
+        const isLastLine = idx === lines.length - 1
+        const hasUrl = urlRegex.test(String(line))
+        urlRegex.lastIndex = 0
+
+        if (!hasUrl && !isLastLine) {
+          pdf.setTextColor(0, 0, 0)
+          setFont('normal')
+          drawJustifiedPlainLine(String(line), x, width)
+        } else {
+          drawLineWithLinks(String(line), x)
+        }
+
+        cursorY += lineHeight
+      })
+      cursorY += 4
+    }
+
+    manuscript.references.forEach((reference) => addHangingReference(reference))
 
     pdf.save(`${baseName}.pdf`)
   }
@@ -642,11 +1098,8 @@ export const ExportToolbar = ({
         <button
           type="button"
           className="border-3 border-black px-4 py-2 bg-white text-black"
-          onClick={handleMarkdownExport}
+          onClick={handlePdfExport}
         >
-          📥 Exportar a Markdown (.md)
-        </button>
-        <button type="button" className="border-3 border-black px-4 py-2 bg-white text-black" onClick={handlePdfExport}>
           📥 Exportar a PDF
         </button>
       </div>
