@@ -28,6 +28,8 @@ export const useExtraction = (projectId: string) => {
 
   const isLikelyPdfUrl = useCallback((value: string) => /\.pdf(\?|#|$)/i.test(value) || /\/pdf\/proxy\?url=/i.test(value), [])
 
+  const isValidHttpUrl = useCallback((value: string) => /^https?:\/\//i.test(value) || /\/pdf\/proxy\?url=/i.test(value), [])
+
   const normalizePdfUrlInput = useCallback(
     (value: string): { rawUrl: string; fetchUrl: string } => {
       const trimmed = value.trim()
@@ -114,8 +116,8 @@ export const useExtraction = (projectId: string) => {
           if (!normalized) {
             pdfSource = null
           } else {
-            if (!isLikelyPdfUrl(normalized)) {
-              throw new Error('El enlace debe ser un PDF directo (.pdf).')
+            if (!isValidHttpUrl(normalized)) {
+              throw new Error('El enlace debe ser una URL válida (http/https).')
             }
             const normalizedUrl = normalizePdfUrlInput(normalized)
 
@@ -178,6 +180,14 @@ export const useExtraction = (projectId: string) => {
 
         updateStep(0)
         const rawText = await extractTextFromPdf(pdfSource)
+
+        const nonWhitespaceChars = rawText.replace(/\s+/g, '').length
+        if (nonWhitespaceChars < 300) {
+          throw new Error(
+            'El PDF parece escaneado o no contiene texto seleccionable. Descárgalo y usa el drag-and-drop, o prueba con otro PDF con texto.',
+          )
+        }
+
         updateStep(1)
         const ragContext = buildRagContext(rawText)
         setLastPreview(truncateText(ragContext, 2400).slice(0, 2400))
@@ -192,7 +202,7 @@ export const useExtraction = (projectId: string) => {
           variable: row.variable,
           extracted: row.extracted,
           quote: row.quote,
-          page: row.page,
+          ...(typeof row.page === 'number' ? { page: row.page } : {}),
         }))
 
         const entryBase = {

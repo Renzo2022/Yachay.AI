@@ -33,7 +33,7 @@ export const ExtractionCard = ({ study, extraction, onAutoExtract, onEdit, proce
   }, [study.pdfUrl])
 
   const normalizedPdfUrl = pdfUrl.trim()
-  const looksLikeDirectPdf = /\.pdf(\?|#|$)/i.test(normalizedPdfUrl) || /\/pdf\/proxy\?url=/i.test(normalizedPdfUrl)
+  const looksLikeDirectPdf = /^https?:\/\//i.test(normalizedPdfUrl) || /\/pdf\/proxy\?url=/i.test(normalizedPdfUrl)
 
   const handleAutoExtract = async (file?: File | string | null) => {
     try {
@@ -138,7 +138,7 @@ export const ExtractionCard = ({ study, extraction, onAutoExtract, onEdit, proce
             </div>
             {!normalizedPdfUrl ? null : !looksLikeDirectPdf ? (
               <p className="mt-2 font-mono text-[10px] text-neutral-600">
-                El enlace debe ser directo y terminar en <strong>.pdf</strong>
+                El enlace debe ser una URL válida (http/https) que devuelva un PDF.
               </p>
             ) : (
               <p className="mt-2 font-mono text-[10px] text-neutral-600">Se guardará para próximas extracciones.</p>

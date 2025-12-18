@@ -32,12 +32,46 @@ const ensureCohere = () => {
 const cleanJson = (content = "") =>
   content.replace(/```json/gi, "").replace(/```/g, "").trim();
 
+const extractFirstJsonObject = (content = "") => {
+  const cleaned = cleanJson(content);
+  const start = cleaned.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  for (let i = start; i < cleaned.length; i += 1) {
+    const ch = cleaned[i];
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return cleaned.slice(start, i + 1);
+      }
+    }
+  }
+
+  const end = cleaned.lastIndexOf("}");
+  if (end > start) return cleaned.slice(start, end + 1);
+  return null;
+};
+
 const parseJsonSafe = (content = "") => {
   const cleaned = cleanJson(content);
   try {
     return JSON.parse(cleaned);
   } catch (error) {
-    return JSON.parse(jsonrepair(cleaned));
+    try {
+      return JSON.parse(jsonrepair(cleaned));
+    } catch {
+      const extracted = extractFirstJsonObject(content);
+      if (extracted && extracted !== cleaned) {
+        try {
+          return JSON.parse(extracted);
+        } catch {
+          return JSON.parse(jsonrepair(extracted));
+        }
+      }
+      throw error;
+    }
   }
 };
 
