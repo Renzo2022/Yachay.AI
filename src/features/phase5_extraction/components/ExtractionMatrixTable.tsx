@@ -100,7 +100,7 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
 
   const headers =
     variant === 'compact'
-      ? ['#', 'Autor/Año', 'Tipo de estudio', 'Población', 'Variables', 'Resultados']
+      ? ['N°', 'Autor/Año', 'Población', 'Aportes Significativos']
       : [
           'Autor',
           'Año',
@@ -117,7 +117,7 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
   return (
     <div className={containerClass}>
       <table
-        className="w-full border-collapse text-black select-text"
+        className="w-full border-collapse text-black select-text table-fixed"
         style={variant === 'compact' ? { fontFamily: 'Arial', fontSize: 11 } : undefined}
       >
         <thead className={headerClass}>
@@ -125,7 +125,9 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
             {headers.map((header) => (
               <th
                 key={header}
-                className={`border-2 border-black px-4 py-3 text-left uppercase tracking-wide ${variant === 'compact' ? '' : 'text-xs'}`}
+                className={`border-2 border-black text-left uppercase tracking-wide break-words ${
+                  variant === 'compact' ? 'px-2 py-2 text-xs leading-snug' : 'px-4 py-3 text-xs'
+                }`}
               >
                 {header}
               </th>
@@ -150,17 +152,19 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
             if (variant === 'compact') {
               const citationYear = study.year || extraction?.context?.year || ''
               const authorYear = buildAuthorYearCitation(Array.isArray(study.authors) ? study.authors : [], citationYear)
+              const significant =
+                extraction?.conclusions?.trim() ||
+                extraction?.outcomes?.results?.trim() ||
+                extraction?.outcomes?.primary?.trim() ||
+                '—'
               return (
                 <tr key={study.id} className="odd:bg-neutral-50">
-                  <td className="border-2 border-black px-3 py-2 align-top text-center w-12">{rowIndex + 1}</td>
-                  <td className="border-2 border-black px-3 py-2 align-top">
+                  <td className="border-2 border-black px-2 py-2 align-top text-center w-12 text-xs leading-snug break-words">{rowIndex + 1}</td>
+                  <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words w-28">
                     <p className="font-black text-black">{authorYear}</p>
-                    <p className="text-neutral-700 line-clamp-2">{study.title}</p>
                   </td>
-                  <td className="border-2 border-black px-3 py-2 align-top">{studyType}</td>
-                  <td className="border-2 border-black px-3 py-2 align-top">{population}</td>
-                  <td className="border-2 border-black px-3 py-2 align-top">{variables}</td>
-                  <td className="border-2 border-black px-3 py-2 align-top">{results}</td>
+                  <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words">{population}</td>
+                  <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words">{significant}</td>
                 </tr>
               )
             }

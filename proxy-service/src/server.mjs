@@ -530,6 +530,7 @@ const handleCohereManuscript = async (req, res) => {
       const evidence = Array.isArray(entry?.evidence) ? entry.evidence.slice(0, 4) : [];
       return {
         id: String(study?.id ?? ""),
+        source: study?.source,
         title: String(study?.title ?? "").slice(0, 240),
         year: study?.year,
         authors: Array.isArray(study?.authors) ? study.authors.slice(0, 8) : [],
@@ -617,11 +618,12 @@ Rules:
 - keywordsEn: same list as keywords (English).
 - Introduction: 250–400 words.
 - Methods: describe PRISMA process, screening, quality assessment and extraction.
-- Results: summarize PRISMA, characteristics and findings. It MUST include at least 4 clearly identifiable paragraphs, each 4–6 sentences (not bullet points):
+- Results: summarize PRISMA, characteristics and findings. It MUST include at least 5 clearly identifiable paragraphs, each 4–6 sentences (not bullet points):
   1) Start with "In Figure 1..." and describe PRISMA counts (identified, duplicates, withoutAbstract, screened, included). Explain what each stage means.
-  2) Start with "In Table 1..." and describe what the comparative matrix summarizes (designs, populations, variables, outcomes). Mention patterns/heterogeneity.
-  3) Start with "In Figure 2..." and describe the temporal pattern using figures.byYear (trend, peaks, possible explanations without inventing).
-  4) Start with "In Figure 3..." and describe the distribution by country using figures.byCountry (concentration, diversity, implications).
+  2) Start with "In Table 1..." and describe the comparative matrix focused on populations and significant contributions (do NOT mention variables that are not present).
+  3) Start with "In Table 2..." and describe the table organized by title, country, design and indexing source (use includedStudies.source when available).
+  4) Start with "In Figure 2..." and describe the temporal pattern using figures.byYear (trend, peaks, possible explanations without inventing).
+  5) Start with "In Figure 3..." and describe the distribution by country using figures.byCountry (concentration, diversity, implications).
   Add in-text APA citations inside these paragraphs whenever you refer to a concrete finding (use ONLY authors/years from includedStudies).
   Do not create an annexes section.
 - Discussion: interpretation, limitations and implications.
@@ -650,11 +652,12 @@ Reglas:
 - keywordsEn: 5–8 keywords en inglés basadas en el abstractEn.
 - Introduction: 250–400 palabras.
 - Methods: describe el proceso PRISMA, cribado, evaluación de calidad y extracción.
-- Results: resume PRISMA, características y hallazgos. DEBE contener al menos 4 párrafos claramente identificables, cada uno de 4–6 oraciones (no viñetas):
+- Results: resume PRISMA, características y hallazgos. DEBE contener al menos 5 párrafos claramente identificables, cada uno de 4–6 oraciones (no viñetas):
   1) Inicia con "En la Figura 1..." y describe PRISMA con los conteos (identified, duplicates, withoutAbstract, screened, included). Explica el significado de cada etapa.
-  2) Inicia con "En la Tabla 1..." y describe qué resume la matriz comparativa (diseños, poblaciones, variables, resultados). Señala patrones/heterogeneidad.
-  3) Inicia con "En la Figura 2..." y describe el patrón temporal usando figures.byYear (tendencia, picos, explicación plausible sin inventar).
-  4) Inicia con "En la Figura 3..." y describe la distribución por país usando figures.byCountry (concentración, diversidad, implicaciones).
+  2) Inicia con "En la Tabla 1..." y describe la matriz comparativa centrada en poblaciones y aportes significativos (NO menciones variables si no están en los datos).
+  3) Inicia con "En la Tabla 2..." y describe la tabla organizada por título, país, diseño e indización (usa includedStudies.source cuando esté disponible).
+  4) Inicia con "En la Figura 2..." y describe el patrón temporal usando figures.byYear (tendencia, picos, explicación plausible sin inventar).
+  5) Inicia con "En la Figura 3..." y describe la distribución por país usando figures.byCountry (concentración, diversidad, implicaciones).
   Incluye citas APA dentro de estos párrafos cuando menciones un hallazgo concreto (usa SOLO autores/años presentes en includedStudies).
   No crees una sección de anexos.
 - Discussion: interpreta, limitaciones y implicaciones.

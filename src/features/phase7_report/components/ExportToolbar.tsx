@@ -125,10 +125,20 @@ export const ExportToolbar = ({
     : ''
 
   const fig1Label = isEnglish ? 'Figure 1: PRISMA 2020 flow diagram' : 'Figura 1: Diagrama PRISMA 2020'
-  const table1Label = isEnglish ? 'Table 1: Comparative matrix (summary)' : 'Tabla 1: Matriz comparativa (resumen)'
+  const table1Label =
+    isEnglish
+      ? 'Table 1: Articles analyzed by population and significant contributions'
+      : 'Tabla 1: Artículos analizados por poblaciones y aportes'
+  const table2Label =
+    isEnglish
+      ? 'Table 2: Articles analyzed by title, origin, design and indexing'
+      : 'Tabla 2: Artículos analizados por títulos, lugar de procedencia, diseño e indización'
   const fig2Label = isEnglish ? 'Figure 2: Distribution by year' : 'Figura 2: Distribución por año'
   const fig3Label = isEnglish ? 'Figure 3: Distribution by country' : 'Figura 3: Distribución por país'
   const sourceText = isEnglish ? "Source: Authors' elaboration" : 'Fuente: Elaboración propia'
+  const fig3NoteText = isEnglish
+    ? 'Note: OTROS groups countries with 1 study or < 1% share.'
+    : 'Nota: OTROS agrupa países con 1 estudio o participación < 1%.'
 
   const hasMatrixRows = Array.isArray(matrixRows) && matrixRows.length > 0
 
@@ -603,6 +613,117 @@ export const ExportToolbar = ({
       cursorY += 10
     }
 
+    const sourceLabel = (raw: unknown) => {
+      const source = String(raw ?? '').trim()
+      if (source === 'pubmed') return 'PubMed'
+      if (source === 'crossref') return 'Crossref'
+      if (source === 'europe_pmc') return 'Europe PMC'
+      if (source === 'semantic_scholar') return 'Semantic Scholar'
+      return source || '—'
+    }
+
+    const addTable2FromRows = () => {
+      if (!hasMatrixRows) {
+        addJustifiedParagraph('(Sin datos)')
+        return
+      }
+
+      const tableWidths = [28, 240, 80, 80, maxWidth - (28 + 240 + 80 + 80)]
+      const lineHeight = 14
+      const padX = 3
+      const padY = 4
+
+      const drawRow = (cells: Array<Array<{ text: string; style: 'normal' | 'bold' }>>, isHeader: boolean) => {
+        const maxLines = cells.reduce((max, cell) => Math.max(max, cell.length), 1)
+        const rowHeight = padY * 2 + maxLines * lineHeight
+
+        if (cursorY + rowHeight > 780) {
+          addPageBreak()
+          drawHeader()
+        }
+
+        let x = marginX
+        const yTop = cursorY
+
+        pdf.setDrawColor(0, 0, 0)
+        pdf.setLineWidth(0.6)
+
+        for (let col = 0; col < cells.length; col += 1) {
+          const width = tableWidths[col] ?? 60
+          pdf.rect(x, yTop, width, rowHeight)
+          const lines = cells[col]
+          let yText = yTop + padY + lineHeight
+          for (let i = 0; i < lines.length; i += 1) {
+            const line = lines[i]
+            setFont(isHeader || line.style === 'bold' ? 'bold' : 'normal')
+            pdf.setTextColor(0, 0, 0)
+            pdf.text(line.text, x + padX, yText)
+            yText += lineHeight
+          }
+          x += width
+        }
+
+        cursorY += rowHeight
+      }
+
+      const wrap = (text: string, width: number) =>
+        pdf
+          .splitTextToSize(String(text ?? ''), Math.max(10, width - padX * 2))
+          .map((line: string) => String(line))
+
+      const drawHeader = () => {
+        const headerCells: Array<Array<{ text: string; style: 'normal' | 'bold' }>> = [
+          [{ text: 'N°', style: 'bold' }],
+          [{ text: isEnglish ? 'Title' : 'Título', style: 'bold' }],
+          [{ text: isEnglish ? 'Country' : 'País', style: 'bold' }],
+          [{ text: isEnglish ? 'Design' : 'Diseño', style: 'bold' }],
+          [{ text: isEnglish ? 'Indexing' : 'Indización', style: 'bold' }],
+        ]
+        drawRow(headerCells, true)
+      }
+
+      drawHeader()
+
+      for (let idx = 0; idx < matrixRows!.length; idx += 1) {
+        const row = matrixRows![idx]
+        const title = String((row.study as any)?.title ?? '').trim() || '—'
+        const country = row.extraction?.context?.country?.trim() ? row.extraction.context.country.trim() : '—'
+        const design = row.extraction?.methodology?.design?.trim() ? row.extraction.methodology.design.trim() : String(row.study?.studyType ?? '—')
+        const indexing = sourceLabel((row.study as any)?.source)
+
+        const cells: Array<Array<{ text: string; style: 'normal' | 'bold' }>> = [
+          [{ text: String(idx + 1), style: 'normal' }],
+          wrap(title, tableWidths[1] ?? 240).slice(0, 6).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(country, tableWidths[2] ?? 80).slice(0, 3).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(design, tableWidths[3] ?? 80).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(indexing, tableWidths[4] ?? 80).slice(0, 3).map((t: string) => ({ text: t, style: 'normal' as const })),
+        ]
+
+        drawRow(cells, false)
+      }
+
+      cursorY += 10
+    }
+
+    const extractResultsParagraphs = (content: string) => {
+      const paragraphs = String(content ?? '')
+        .split(/\n{2,}/)
+        .map((chunk) => chunk.trim())
+        .filter(Boolean)
+
+      const normalized = paragraphs.map((p) => ({ raw: p, lower: p.toLowerCase() }))
+      const takeByPrefix = (prefixes: string[]) =>
+        normalized.find((p) => prefixes.some((prefix) => p.lower.startsWith(prefix)))?.raw ?? ''
+
+      const fig1 = takeByPrefix(['en la figura 1', 'in figure 1'])
+      const table1 = takeByPrefix(['en la tabla 1', 'in table 1'])
+      const table2 = takeByPrefix(['en la tabla 2', 'in table 2'])
+      const fig2 = takeByPrefix(['en la figura 2', 'in figure 2'])
+      const fig3 = takeByPrefix(['en la figura 3', 'in figure 3'])
+
+      return { fig1, table1, table2, fig2, fig3 }
+    }
+
     const addHeading = (text: string) => {
       ensureSpace(18)
       setFont('bold')
@@ -665,7 +786,7 @@ export const ExportToolbar = ({
         return
       }
 
-      const tableWidths = [28, 118, 80, 110, 80, maxWidth - (28 + 118 + 80 + 110 + 80)]
+      const tableWidths = [28, 110, 160, maxWidth - (28 + 110 + 160)]
       const lineHeight = 14
       const padX = 3
       const padY = 4
@@ -710,12 +831,10 @@ export const ExportToolbar = ({
 
       const drawHeader = () => {
         const headerCells: Array<Array<{ text: string; style: 'normal' | 'bold' }>> = [
-          [{ text: '#', style: 'bold' }],
+          [{ text: 'N°', style: 'bold' }],
           [{ text: isEnglish ? 'Author/Year' : 'Autor/Año', style: 'bold' }],
-          [{ text: isEnglish ? 'Study type' : 'Tipo de estudio', style: 'bold' }],
           [{ text: isEnglish ? 'Population' : 'Población', style: 'bold' }],
-          [{ text: isEnglish ? 'Variables' : 'Variables', style: 'bold' }],
-          [{ text: isEnglish ? 'Results' : 'Resultados', style: 'bold' }],
+          [{ text: isEnglish ? 'Significant contributions' : 'Aportes Significativos', style: 'bold' }],
         ]
         drawRow(headerCells, true)
       }
@@ -726,24 +845,18 @@ export const ExportToolbar = ({
         const row = matrixRows![idx]
         const year = (row.study as any)?.year || (row.extraction as any)?.context?.year || ''
         const citation = buildAuthorYearCitation((row.study as any)?.authors, year)
-        const title = String((row.study as any)?.title ?? '').trim().slice(0, 220) || '—'
-        const authorLines: Array<{ text: string; style: 'normal' | 'bold' }> = [
-          { text: citation, style: 'bold' },
-          ...wrap(title, tableWidths[1] ?? 120).slice(0, 3).map((t: string) => ({ text: t, style: 'normal' as const })),
-        ]
-
-        const studyType = String(row.study?.studyType ?? '—') || '—'
         const population = row.extraction?.sample?.description?.trim() ? row.extraction.sample.description.trim() : '—'
-        const variables = row.extraction?.variables?.length ? row.extraction.variables.join(', ') : '—'
-        const results = row.extraction?.outcomes?.results?.trim() ? row.extraction.outcomes.results.trim() : '—'
+        const significant =
+          row.extraction?.conclusions?.trim() ||
+          row.extraction?.outcomes?.results?.trim() ||
+          (row.extraction as any)?.outcomes?.primary?.trim() ||
+          '—'
 
         const cells: Array<Array<{ text: string; style: 'normal' | 'bold' }>> = [
           [{ text: String(idx + 1), style: 'normal' }],
-          authorLines,
-          wrap(studyType, tableWidths[2] ?? 80).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
-          wrap(population, tableWidths[3] ?? 110).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
-          wrap(variables, tableWidths[4] ?? 80).slice(0, 4).map((t: string) => ({ text: t, style: 'normal' as const })),
-          wrap(results, tableWidths[5] ?? 120).slice(0, 6).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(citation, tableWidths[1] ?? 110).slice(0, 2).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(population, tableWidths[2] ?? 160).slice(0, 6).map((t: string) => ({ text: t, style: 'normal' as const })),
+          wrap(significant, tableWidths[3] ?? 160).slice(0, 8).map((t: string) => ({ text: t, style: 'normal' as const })),
         ]
 
         drawRow(cells, false)
@@ -943,10 +1056,15 @@ export const ExportToolbar = ({
       }
 
       if (section.field === 'results') {
+        const extracted = extractResultsParagraphs(content)
+        const noteExists = Boolean(document.getElementById('phase7-fig-by-country-note'))
+
+        if (extracted.fig1) addJustifiedParagraph(extracted.fig1)
         addCaption(fig1Label)
         await addImageFromElement('phase7-fig-prisma')
         addSource()
 
+        if (extracted.table1) addJustifiedParagraph(extracted.table1)
         addCaption(table1Label)
         if (hasMatrixRows) {
           addMatrixFromRows()
@@ -957,12 +1075,25 @@ export const ExportToolbar = ({
         }
         addSource()
 
+        if (extracted.table2) addJustifiedParagraph(extracted.table2)
+        addCaption(table2Label)
+        addTable2FromRows()
+        addSource()
+
+        if (extracted.fig2) addJustifiedParagraph(extracted.fig2)
         addCaption(fig2Label)
         await addImageFromElement('phase7-fig-by-year')
         addSource()
 
+        if (extracted.fig3) addJustifiedParagraph(extracted.fig3)
         addCaption(fig3Label)
         await addImageFromElement('phase7-fig-by-country')
+        if (noteExists) {
+          setFont('bolditalic')
+          ensureSpace(16)
+          pdf.text(fig3NoteText, marginX, cursorY)
+          cursorY += 20
+        }
         addSource()
       }
     }

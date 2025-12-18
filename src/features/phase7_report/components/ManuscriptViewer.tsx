@@ -61,12 +61,45 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
   const figure1Label = isEnglish ? 'Figure 1:' : 'Figura 1:'
   const figure1Title = isEnglish ? 'PRISMA 2020 flow diagram' : 'Diagrama PRISMA 2020'
   const table1Label = isEnglish ? 'Table 1:' : 'Tabla 1:'
-  const table1Title = isEnglish ? 'Comparative matrix (summary)' : 'Matriz comparativa (resumen)'
+  const table1Title = isEnglish ? 'Articles analyzed by population and significant contributions' : 'Artículos analizados por poblaciones y aportes'
+  const table2Label = isEnglish ? 'Table 2:' : 'Tabla 2:'
+  const table2Title =
+    isEnglish
+      ? 'Articles analyzed by title, origin, design and indexing'
+      : 'Artículos analizados por títulos, lugar de procedencia, diseño e indización'
   const figure2Label = isEnglish ? 'Figure 2:' : 'Figura 2:'
   const figure2Title = isEnglish ? 'Distribution by year' : 'Distribución por año'
   const figure3Label = isEnglish ? 'Figure 3:' : 'Figura 3:'
   const figure3Title = isEnglish ? 'Distribution by country' : 'Distribución por país'
   const sourceText = isEnglish ? "Source: Authors' elaboration" : 'Fuente: Elaboración propia'
+
+  const sourceLabel = (raw: unknown) => {
+    const source = String(raw ?? '').trim()
+    if (source === 'pubmed') return 'PubMed'
+    if (source === 'crossref') return 'Crossref'
+    if (source === 'europe_pmc') return 'Europe PMC'
+    if (source === 'semantic_scholar') return 'Semantic Scholar'
+    return source || '—'
+  }
+
+  const extractResultsParagraphs = (content: string) => {
+    const paragraphs = String(content ?? '')
+      .split(/\n{2,}/)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean)
+
+    const normalized = paragraphs.map((p) => ({ raw: p, lower: p.toLowerCase() }))
+    const takeByPrefix = (prefixes: string[]) =>
+      normalized.find((p) => prefixes.some((prefix) => p.lower.startsWith(prefix)))?.raw ?? ''
+
+    const fig1 = takeByPrefix(['en la figura 1', 'in figure 1'])
+    const table1 = takeByPrefix(['en la tabla 1', 'in table 1'])
+    const table2 = takeByPrefix(['en la tabla 2', 'in table 2'])
+    const fig2 = takeByPrefix(['en la figura 2', 'in figure 2'])
+    const fig3 = takeByPrefix(['en la figura 3', 'in figure 3'])
+
+    return { fig1, table1, table2, fig2, fig3 }
+  }
 
   const reportByCountry = (() => {
     const items = (annexes?.byCountry ?? []).map((row) => ({
@@ -178,112 +211,207 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
           {section.field === 'results' ? (
             <div className="space-y-8">
               <div className="space-y-6">
-                <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>
-                        {figure1Label} {figure1Title}
-                      </em>
-                    </strong>
-                  </p>
-                  <div id="phase7-fig-prisma" className="bg-white">
-                    {annexes ? (
-                      <PrismaDiagram data={annexes.prisma} />
-                    ) : (
-                      <div className="border border-neutral-200 p-4 font-mono text-xs text-neutral-600">(Sin datos)</div>
-                    )}
-                  </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>{sourceText}</em>
-                    </strong>
-                  </p>
-                </div>
+                {(() => {
+                  const extracted = extractResultsParagraphs(String(manuscript.results ?? ''))
+                  return (
+                    <>
+                      {extracted.fig1 ? (
+                        <p className="text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}>
+                          {extracted.fig1}
+                        </p>
+                      ) : null}
 
-                <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>
-                        {table1Label} {table1Title}
-                      </em>
-                    </strong>
-                  </p>
-                  <div id="phase7-table-matrix" className="bg-white select-text">
-                    <ExtractionMatrixTable rows={matrixRows ?? []} variant="compact" />
-                  </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>{sourceText}</em>
-                    </strong>
-                  </p>
-                </div>
+                      <div className="space-y-2">
+                        <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>
+                              {figure1Label} {figure1Title}
+                            </em>
+                          </strong>
+                        </p>
+                        <div id="phase7-fig-prisma" className="bg-white">
+                          {annexes ? (
+                            <PrismaDiagram data={annexes.prisma} />
+                          ) : (
+                            <div className="border border-neutral-200 p-4 font-mono text-xs text-neutral-600">(Sin datos)</div>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>{sourceText}</em>
+                          </strong>
+                        </p>
+                      </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>
-                        {figure2Label} {figure2Title}
-                      </em>
-                    </strong>
-                  </p>
-                  <div id="phase7-fig-by-year" className="bg-white h-64 min-w-0">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                      <BarChart data={annexes?.byYear ?? []} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                        <CartesianGrid stroke="#111" strokeDasharray="3 3" />
-                        <XAxis dataKey="name" stroke="#111" />
-                        <YAxis stroke="#111" allowDecimals={false} />
-                        <Bar dataKey="count" fill="#EF4444" stroke="#111" strokeWidth={2} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>{sourceText}</em>
-                    </strong>
-                  </p>
-                </div>
+                      {extracted.table1 ? (
+                        <p className="text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}>
+                          {extracted.table1}
+                        </p>
+                      ) : null}
 
-                <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>
-                        {figure3Label} {figure3Title}
-                      </em>
-                    </strong>
-                  </p>
-                  <div id="phase7-fig-by-country" className="bg-white h-64 min-w-0">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                      <BarChart data={reportByCountry.data} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }}>
-                        <CartesianGrid stroke="#111" strokeDasharray="3 3" />
-                        <XAxis type="number" stroke="#111" allowDecimals={false} />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          width={170}
-                          stroke="#111"
-                          tick={{ fill: '#111', fontSize: 11, fontFamily: 'Arial' }}
-                        />
-                        <Bar dataKey="value" stroke="#111" strokeWidth={2} barSize={16} label={renderCountryBarLabel}>
-                          {reportByCountry.data.map((entry) => (
-                            <Cell key={`cell-${entry.name}`} fill={colorForCountry(String(entry.name ?? ''))} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  {reportByCountry.hasOtherBucket ? (
-                    <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                      <strong>
-                        <em>{isEnglish ? 'Note: OTROS groups countries with 1 study or < 1% share.' : 'Nota: OTROS agrupa países con 1 estudio o participación < 1%.'}</em>
-                      </strong>
-                    </p>
-                  ) : null}
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
-                    <strong>
-                      <em>Fuente: Elaboración propia</em>
-                    </strong>
-                  </p>
-                </div>
+                      <div className="space-y-2">
+                        <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>
+                              {table1Label} {table1Title}
+                            </em>
+                          </strong>
+                        </p>
+                        <div id="phase7-table-matrix" className="bg-white select-text">
+                          <ExtractionMatrixTable rows={matrixRows ?? []} variant="compact" />
+                        </div>
+                        <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>{sourceText}</em>
+                          </strong>
+                        </p>
+                      </div>
+
+                      {extracted.table2 ? (
+                        <p className="text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}>
+                          {extracted.table2}
+                        </p>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>
+                              {table2Label} {table2Title}
+                            </em>
+                          </strong>
+                        </p>
+                        <div className="bg-white select-text overflow-auto">
+                          <table className="w-full border-collapse text-black select-text table-fixed" style={{ fontFamily: 'Arial', fontSize: 11 }}>
+                            <thead className="bg-neutral-100 text-black">
+                              <tr>
+                                {['N°', isEnglish ? 'Title' : 'Título', isEnglish ? 'Country' : 'País', isEnglish ? 'Design' : 'Diseño', isEnglish ? 'Indexing' : 'Indización'].map(
+                                  (header) => (
+                                    <th
+                                      key={header}
+                                      className="border-2 border-black text-left uppercase tracking-wide break-words px-2 py-2 text-xs leading-snug"
+                                    >
+                                      {header}
+                                    </th>
+                                  ),
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(matrixRows ?? []).map(({ study, extraction }, idx) => {
+                                const country = extraction?.context?.country?.trim() ? extraction.context.country.trim() : '—'
+                                const design = extraction?.methodology?.design?.trim() ? extraction.methodology.design.trim() : (study.studyType ?? '—')
+                                const indexing = sourceLabel((study as any)?.source)
+                                const title = String((study as any)?.title ?? '').trim() || '—'
+                                return (
+                                  <tr key={study.id} className="odd:bg-neutral-50">
+                                    <td className="border-2 border-black px-2 py-2 align-top text-center w-12 text-xs leading-snug break-words">{idx + 1}</td>
+                                    <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words">{title}</td>
+                                    <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words w-24">{country}</td>
+                                    <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words w-28">{design}</td>
+                                    <td className="border-2 border-black px-2 py-2 align-top text-xs leading-snug break-words w-28">{indexing}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>{sourceText}</em>
+                          </strong>
+                        </p>
+                      </div>
+
+                      {extracted.fig2 ? (
+                        <p className="text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}>
+                          {extracted.fig2}
+                        </p>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>
+                              {figure2Label} {figure2Title}
+                            </em>
+                          </strong>
+                        </p>
+                        <div id="phase7-fig-by-year" className="bg-white h-64 min-w-0">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                            <BarChart data={annexes?.byYear ?? []} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                              <CartesianGrid stroke="#111" strokeDasharray="3 3" />
+                              <XAxis dataKey="name" stroke="#111" />
+                              <YAxis stroke="#111" allowDecimals={false} />
+                              <Bar dataKey="count" fill="#EF4444" stroke="#111" strokeWidth={2} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>{sourceText}</em>
+                          </strong>
+                        </p>
+                      </div>
+
+                      {extracted.fig3 ? (
+                        <p className="text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}>
+                          {extracted.fig3}
+                        </p>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>
+                              {figure3Label} {figure3Title}
+                            </em>
+                          </strong>
+                        </p>
+                        <div id="phase7-fig-by-country" className="bg-white h-64 min-w-0">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                            <BarChart data={reportByCountry.data} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }}>
+                              <CartesianGrid stroke="#111" strokeDasharray="3 3" />
+                              <XAxis type="number" stroke="#111" allowDecimals={false} />
+                              <YAxis
+                                type="category"
+                                dataKey="name"
+                                width={170}
+                                stroke="#111"
+                                tick={{ fill: '#111', fontSize: 11, fontFamily: 'Arial' }}
+                              />
+                              <Bar dataKey="value" stroke="#111" strokeWidth={2} barSize={16} label={renderCountryBarLabel}>
+                                {reportByCountry.data.map((entry) => (
+                                  <Cell key={`cell-${entry.name}`} fill={colorForCountry(String(entry.name ?? ''))} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        {reportByCountry.hasOtherBucket ? (
+                          <p
+                            id="phase7-fig-by-country-note"
+                            className="text-xs text-neutral-700"
+                            style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}
+                          >
+                            <strong>
+                              <em>
+                                {isEnglish
+                                  ? 'Note: OTROS groups countries with 1 study or < 1% share.'
+                                  : 'Nota: OTROS agrupa países con 1 estudio o participación < 1%.'}
+                              </em>
+                            </strong>
+                          </p>
+                        ) : null}
+                        <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                          <strong>
+                            <em>{sourceText}</em>
+                          </strong>
+                        </p>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           ) : null}

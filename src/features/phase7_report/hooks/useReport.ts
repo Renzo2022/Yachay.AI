@@ -127,7 +127,12 @@ export const useReport = (projectId: string) => {
       if (normalized.length === 0) return ''
       if (normalized.length === 1) return normalized[0]
       if (normalized.length === 2) return `${normalized[0]}, & ${normalized[1]}`
-      return `${normalized.slice(0, -1).join(', ')}, & ${normalized[normalized.length - 1]}`
+      if (normalized.length <= 20) {
+        return `${normalized.slice(0, -1).join(', ')}, & ${normalized[normalized.length - 1]}`
+      }
+      const first = normalized.slice(0, 19)
+      const last = normalized[normalized.length - 1]
+      return `${first.join(', ')}, ..., ${last}`
     }
 
     const normalizeDoi = (raw: string) => {

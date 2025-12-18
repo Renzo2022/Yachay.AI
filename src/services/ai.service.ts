@@ -616,7 +616,12 @@ const buildApaReferences = (studies: Candidate[]) => {
     if (normalized.length === 0) return ''
     if (normalized.length === 1) return normalized[0]
     if (normalized.length === 2) return `${normalized[0]}, & ${normalized[1]}`
-    return `${normalized.slice(0, -1).join(', ')}, & ${normalized[normalized.length - 1]}`
+    if (normalized.length <= 20) {
+      return `${normalized.slice(0, -1).join(', ')}, & ${normalized[normalized.length - 1]}`
+    }
+    const first = normalized.slice(0, 19)
+    const last = normalized[normalized.length - 1]
+    return `${first.join(', ')}, ..., ${last}`
   }
 
   const normalizeDoi = (raw: string) => {
@@ -663,6 +668,9 @@ const DEFAULT_MANUSCRIPT = (
 ): Manuscript => {
   const includedCount = aggregated?.includedStudies?.length ?? 0
   const prismaIdentified = aggregated?.prisma?.identified ?? 0
+  const prismaDuplicates = aggregated?.prisma?.duplicates ?? 0
+  const prismaWithoutAbstract = aggregated?.prisma?.withoutAbstract ?? 0
+  const prismaScreened = aggregated?.prisma?.screened ?? 0
   const prismaIncluded = aggregated?.prisma?.included ?? includedCount
   const phase1Question = aggregated?.phase1?.mainQuestion ?? '¿Cuál es el efecto de las intervenciones basadas en IA en contextos educativos?'
 
@@ -697,7 +705,12 @@ const DEFAULT_MANUSCRIPT = (
           introduction: `The integration of intelligent technologies in learning environments has motivated multiple studies comparing their effectiveness with traditional approaches. This review addresses the central question: ${phase1Question}. Despite a diversity of designs and contexts, important gaps remain regarding longitudinal follow-up and learner-centered metrics.`,
           methods:
             'Federated searches were conducted in international databases, applying predefined PICO criteria and PRISMA flows. Methodological quality was assessed using CASP and quantitative extractions were standardized into structured matrices.',
-          results: `A total of ${includedCount} studies were included, predominantly randomized and quasi-experimental designs. The most effective interventions combined analytic dashboards with teacher coaching, reporting improvements in feedback accuracy and timeliness.`,
+          results:
+            `In Figure 1, the PRISMA flow diagram summarizes identification and screening: ${prismaIdentified} records were identified, ${prismaDuplicates} duplicates were removed, ${prismaWithoutAbstract} records lacked an abstract, ${prismaScreened} were screened, and ${prismaIncluded} were included. These stages represent progressive filtering from retrieval to eligibility based on predefined criteria. The sequence ensures transparency about why studies entered or left the review.\n\n` +
+            `In Table 1, the comparative matrix synthesizes the populations addressed and the most significant contributions reported across the included studies. This overview highlights how interventions were applied in different educational contexts and where the strongest reported benefits concentrate. It also illustrates heterogeneity in populations and outcomes described.\n\n` +
+            `In Table 2, studies are organized by title, country of origin, design, and indexing source. This structure supports traceability of evidence and helps contextualize methodological diversity across settings. It also helps readers locate the primary sources efficiently.\n\n` +
+            `In Figure 2, the distribution by year provides an overview of publication activity over time. Variations across years can reflect shifts in research priorities and the maturity of AI-based interventions in education.\n\n` +
+            `In Figure 3, the distribution by country indicates how evidence is geographically concentrated and where representation is limited. This pattern can inform interpretation of generalizability and identify opportunities for research in underrepresented regions.`,
           discussion:
             'Findings support the adoption of automated assessment systems, although methodological heterogeneity limits full generalizability. Multi-center studies and direct platform comparisons are needed to clarify the role of personalization.',
           conclusions:
@@ -721,7 +734,11 @@ const DEFAULT_MANUSCRIPT = (
           methods:
             'Se llevaron a cabo búsquedas federadas en bases de datos internacionales, aplicando criterios PICO predefinidos y flujos PRISMA. La calidad metodológica se evaluó mediante CASP y las extracciones cuantitativas fueron estandarizadas en matrices estructuradas.',
           results:
-            `Se incluyeron ${includedCount} estudios con predominio de ensayos controlados y diseños quasi-experimentales. Las intervenciones más efectivas combinaron dashboards analíticos con coaching docente, mostrando mejoras estadísticamente significativas en precisión de retroalimentación.`,
+            `En la Figura 1, el diagrama PRISMA resume la identificación y el cribado: se identificaron ${prismaIdentified} registros, se eliminaron ${prismaDuplicates} duplicados, ${prismaWithoutAbstract} registros no contaron con resumen, se cribaron ${prismaScreened} y se incluyeron ${prismaIncluded}. Estas etapas representan un filtrado progresivo desde la recuperación hasta la elegibilidad según criterios predefinidos. La secuencia garantiza transparencia sobre por qué los estudios ingresan o salen de la revisión.\n\n` +
+            `En la Tabla 1, la matriz comparativa sintetiza las poblaciones abordadas y los aportes significativos reportados en los estudios incluidos. Esta visión permite identificar en qué contextos educativos se aplicaron las intervenciones y dónde se concentran los beneficios más destacados. Asimismo, muestra la heterogeneidad entre poblaciones y métricas reportadas.\n\n` +
+            `En la Tabla 2, los estudios se organizan por título, país de procedencia, diseño e indización (fuente de indexación). Esta estructura mejora la trazabilidad de la evidencia y permite contextualizar la diversidad metodológica entre entornos. Además, facilita la localización de las fuentes primarias.\n\n` +
+            `En la Figura 2, la distribución por año ofrece una visión del volumen de publicaciones a lo largo del tiempo. Las variaciones entre años pueden reflejar cambios en prioridades de investigación y en la madurez de las intervenciones basadas en IA en educación.\n\n` +
+            `En la Figura 3, la distribución por país muestra cómo la evidencia se concentra geográficamente y dónde existe menor representación. Este patrón orienta la interpretación de la generalización de hallazgos y sugiere oportunidades de investigación en regiones subrepresentadas.`,
           discussion:
             'Los hallazgos respaldan la adopción de sistemas de evaluación automatizada, aunque la heterogeneidad metodológica limita la extrapolación completa. Se requieren estudios multicéntricos y comparaciones directas entre plataformas para comprender el rol de la personalización.',
           conclusions:
