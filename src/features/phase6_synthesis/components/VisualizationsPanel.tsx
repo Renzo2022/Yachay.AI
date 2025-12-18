@@ -4,6 +4,35 @@ import type { Candidate } from '../../projects/types.ts'
 
 const PIE_COLORS = ['#F97316', '#FFB703', '#FB5607', '#FF006E', '#8338EC', '#3A86FF']
 
+const renderPieLabel = (props: {
+  cx?: number
+  cy?: number
+  midAngle?: number
+  innerRadius?: number
+  outerRadius?: number
+  percent?: number
+  name?: string
+}) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props
+  if (!cx || !cy || !Number.isFinite(midAngle) || innerRadius == null || outerRadius == null) return null
+  if (!name) return null
+
+  const pct = typeof percent === 'number' ? percent : 0
+  if (pct < 0.05) return null
+
+  const RADIAN = Math.PI / 180
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.6
+  const x = cx + radius * Math.cos(-midAngle * RADIAN)
+  const y = cy + radius * Math.sin(-midAngle * RADIAN)
+  const label = `${name} ${(pct * 100).toFixed(0)}%`
+
+  return (
+    <text x={x} y={y} fill="#111" textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="Arial">
+      {label}
+    </text>
+  )
+}
+
 interface VisualizationsPanelProps {
   stats: SynthesisStats
   studies: Candidate[]
@@ -52,30 +81,23 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
           <div className="h-60 min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <PieChart>
-                <Pie data={stats.byCountry} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} stroke="#111" strokeWidth={2}>
+                <Pie
+                  data={stats.byCountry}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={0}
+                  outerRadius={88}
+                  stroke="#111"
+                  strokeWidth={2}
+                  labelLine={false}
+                  label={renderPieLabel}
+                >
                   {stats.byCountry.map((entry, index) => (
                     <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {stats.byCountry.map((entry, index) => {
-              const color = PIE_COLORS[index % PIE_COLORS.length]
-              return (
-                <div key={`legend-${entry.name}`} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-3 h-3 border-2 border-black" style={{ backgroundColor: color }} />
-                    <span className="font-mono text-xs uppercase tracking-wide truncate" style={{ color }}>
-                      {entry.name}
-                    </span>
-                  </div>
-                  <span className="font-mono text-xs text-neutral-700">{entry.value ?? 0}</span>
-                </div>
-              )
-            })}
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import { GeneratorHero } from '../components/GeneratorHero.tsx'
 import { ManuscriptViewer } from '../components/ManuscriptViewer.tsx'
 import { ExportToolbar } from '../components/ExportToolbar.tsx'
 import type { Manuscript } from '../types.ts'
+import type { ManuscriptLanguage } from '../types.ts'
 
 const fireCelebration = () => {
   confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 }, colors: ['#EF4444', '#111111', '#ffffff'] })
@@ -27,6 +28,7 @@ export const Phase7View = () => {
     annexes,
     reportTitle,
     keywords,
+    keywordsEn,
     matrixRows,
     generating,
     progress,
@@ -63,15 +65,50 @@ export const Phase7View = () => {
             <h2 className="text-3xl font-black text-black text-center" style={{ fontFamily: '"Merriweather", serif' }}>
               {reportTitle || project.name}
             </h2>
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <input
+                className="w-full max-w-xl border-3 border-black bg-white px-3 py-2 text-center"
+                style={{ fontFamily: 'Arial', fontSize: 11 }}
+                placeholder="Nombre del autor"
+                value={manuscript?.authorName ?? ''}
+                onChange={async (event) => {
+                  await updateSection('authorName', event.target.value)
+                }}
+              />
+              <div className="flex w-full max-w-xl items-center gap-2">
+                <input
+                  className="flex-1 border-3 border-black bg-white px-3 py-2 text-center"
+                  style={{ fontFamily: 'Arial', fontSize: 11 }}
+                  placeholder="ORCID (0000-0000-0000-0000 o URL)"
+                  value={manuscript?.authorOrcid ?? ''}
+                  onChange={async (event) => {
+                    await updateSection('authorOrcid', event.target.value)
+                  }}
+                />
+                {manuscript?.authorOrcid?.trim() ? (
+                  <a
+                    className="border-3 border-black bg-white px-3 py-2"
+                    style={{ fontFamily: 'Arial', fontSize: 11, color: '#A6CE39' }}
+                    href={manuscript.authorOrcid.trim().startsWith('http') ? manuscript.authorOrcid.trim() : `https://orcid.org/${manuscript.authorOrcid.trim().replace(/^orcid\.org\//i, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Abrir ORCID"
+                  >
+                    iD
+                  </a>
+                ) : null}
+              </div>
+            </div>
           </div>
           <ExportToolbar
             manuscript={manuscript as Manuscript}
             projectName={project.name}
             reportTitle={reportTitle || project.name}
             keywords={keywords}
+            keywordsEn={keywordsEn}
             matrixRowCount={matrixRows.length}
-            onRegenerate={async () => {
-              await regenerateManuscript()
+            onRegenerate={async (language: ManuscriptLanguage) => {
+              await regenerateManuscript(language)
             }}
             regenerating={generating}
           />
@@ -135,6 +172,7 @@ export const Phase7View = () => {
             onChange={updateSection}
             annexes={annexes}
             keywords={keywords}
+            keywordsEn={keywordsEn}
             matrixRows={matrixRows}
           />
         </>

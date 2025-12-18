@@ -10,12 +10,13 @@ interface ManuscriptViewerProps {
   onChange: (field: keyof Manuscript, value: Manuscript[keyof Manuscript]) => Promise<void>
   annexes?: AnnexesData | null
   keywords?: string[]
+  keywordsEn?: string[]
   matrixRows?: Array<{ study: Candidate; extraction?: ExtractionData }>
 }
 
 const PIE_COLORS = ['#EF4444', '#F97316', '#FFB703', '#FB5607', '#FF006E', '#8338EC', '#3A86FF']
 
-const sections: { field: keyof Manuscript; label: string }[] = [
+const sectionsEs: { field: keyof Manuscript; label: string }[] = [
   { field: 'abstract', label: 'Resumen' },
   { field: 'introduction', label: 'Introducción' },
   { field: 'methods', label: 'Métodos' },
@@ -24,8 +25,61 @@ const sections: { field: keyof Manuscript; label: string }[] = [
   { field: 'conclusions', label: 'Conclusiones' },
 ]
 
-export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matrixRows }: ManuscriptViewerProps) => {
+const sectionsEn: { field: keyof Manuscript; label: string }[] = [
+  { field: 'abstract', label: 'Abstract' },
+  { field: 'introduction', label: 'Introduction' },
+  { field: 'methods', label: 'Methods' },
+  { field: 'results', label: 'Results' },
+  { field: 'discussion', label: 'Discussion' },
+  { field: 'conclusions', label: 'Conclusions' },
+]
+
+const renderPieLabel = (props: {
+  cx?: number
+  cy?: number
+  midAngle?: number
+  innerRadius?: number
+  outerRadius?: number
+  percent?: number
+  name?: string
+}) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props
+  if (!cx || !cy || !Number.isFinite(midAngle) || innerRadius == null || outerRadius == null) return null
+  if (!name) return null
+
+  const pct = typeof percent === 'number' ? percent : 0
+  if (pct < 0.05) return null
+
+  const RADIAN = Math.PI / 180
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.6
+  const x = cx + radius * Math.cos(-midAngle * RADIAN)
+  const y = cy + radius * Math.sin(-midAngle * RADIAN)
+  const label = `${name} ${(pct * 100).toFixed(0)}%`
+
+  return (
+    <text x={x} y={y} fill="#111" textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="Arial">
+      {label}
+    </text>
+  )
+}
+
+export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keywordsEn, matrixRows }: ManuscriptViewerProps) => {
+  const isEnglish = manuscript.language === 'en'
+  const sections = isEnglish ? sectionsEn : sectionsEs
   const keywordsLine = (keywords ?? []).filter(Boolean).join(', ')
+  const keywordsLineEn = (keywordsEn ?? []).filter(Boolean).join(', ')
+
+  const keywordsForEnglish = keywordsLineEn || keywordsLine
+
+  const figure1Label = isEnglish ? 'Figure 1:' : 'Figura 1:'
+  const figure1Title = isEnglish ? 'PRISMA 2020 flow diagram' : 'Diagrama PRISMA 2020'
+  const table1Label = isEnglish ? 'Table 1:' : 'Tabla 1:'
+  const table1Title = isEnglish ? 'Comparative matrix (summary)' : 'Matriz comparativa (resumen)'
+  const figure2Label = isEnglish ? 'Figure 2:' : 'Figura 2:'
+  const figure2Title = isEnglish ? 'Distribution by year' : 'Distribución por año'
+  const figure3Label = isEnglish ? 'Figure 3:' : 'Figura 3:'
+  const figure3Title = isEnglish ? 'Distribution by country' : 'Distribución por país'
+  const sourceText = isEnglish ? "Source: Authors' elaboration" : 'Fuente: Elaboración propia'
 
   return (
     <section className="border-4 border-black bg-white shadow-[16px_16px_0_0_#111] p-6 space-y-6">
@@ -37,24 +91,47 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
           </header>
           <textarea
             className="w-full border-4 border-black bg-neutral-50 p-4 text-lg leading-relaxed text-black placeholder:text-neutral-500"
-            style={{ fontFamily: '"Merriweather", "Times New Roman", serif' }}
+            style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}
             value={(manuscript[section.field] as string) ?? ''}
             rows={8}
             onChange={(event) => onChange(section.field, event.target.value)}
           />
 
           {section.field === 'abstract' ? (
-            <p className="font-mono text-xs text-neutral-700">
-              <strong>Palabras clave:</strong> {keywordsLine || '—'}
-            </p>
+            <div className="space-y-2">
+              <p className="font-mono text-xs text-neutral-700">
+                <strong>{isEnglish ? 'Keywords:' : 'Palabras clave:'}</strong> {isEnglish ? keywordsForEnglish || '—' : keywordsLine || '—'}
+              </p>
+              {!isEnglish ? (
+                <>
+                  <div className="border-3 border-black bg-white p-3">
+                    <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-600">Abstract (EN)</p>
+                    <textarea
+                      className="w-full border-3 border-black bg-neutral-50 p-3 text-black placeholder:text-neutral-500"
+                      style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}
+                      value={manuscript.abstractEn ?? ''}
+                      rows={6}
+                      onChange={(event) => onChange('abstractEn', event.target.value)}
+                    />
+                    <p className="mt-2 font-mono text-xs text-neutral-700">
+                      <strong>Keywords:</strong> {keywordsForEnglish || '—'}
+                    </p>
+                  </div>
+                </>
+              ) : null}
+            </div>
           ) : null}
 
           {section.field === 'results' ? (
             <div className="space-y-8">
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: '"Merriweather", serif' }}>
-                    <strong>Figura 1:</strong> Diagrama PRISMA 2020
+                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                    <strong>
+                      <em>
+                        {figure1Label} {figure1Title}
+                      </em>
+                    </strong>
                   </p>
                   <div id="phase7-fig-prisma" className="bg-white">
                     {annexes ? (
@@ -63,30 +140,38 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                       <div className="border border-neutral-200 p-4 font-mono text-xs text-neutral-600">(Sin datos)</div>
                     )}
                   </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
+                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
                     <strong>
-                      <em>Fuente: Elaboración propia</em>
+                      <em>{sourceText}</em>
                     </strong>
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: '"Merriweather", serif' }}>
-                    <strong>Tabla 1:</strong> Matriz comparativa (resumen)
+                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                    <strong>
+                      <em>
+                        {table1Label} {table1Title}
+                      </em>
+                    </strong>
                   </p>
                   <div id="phase7-table-matrix" className="bg-white">
                     <ExtractionMatrixTable rows={matrixRows ?? []} variant="compact" />
                   </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
+                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
                     <strong>
-                      <em>Fuente: Elaboración propia</em>
+                      <em>{sourceText}</em>
                     </strong>
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: '"Merriweather", serif' }}>
-                    <strong>Figura 2:</strong> Distribución por año
+                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                    <strong>
+                      <em>
+                        {figure2Label} {figure2Title}
+                      </em>
+                    </strong>
                   </p>
                   <div id="phase7-fig-by-year" className="bg-white h-64 min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -98,16 +183,20 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
+                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
                     <strong>
-                      <em>Fuente: Elaboración propia</em>
+                      <em>{sourceText}</em>
                     </strong>
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm text-black" style={{ fontFamily: '"Merriweather", serif' }}>
-                    <strong>Figura 3:</strong> Distribución por país
+                  <p className="text-sm text-black" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                    <strong>
+                      <em>
+                        {figure3Label} {figure3Title}
+                      </em>
+                    </strong>
                   </p>
                   <div id="phase7-fig-by-country" className="bg-white h-64 min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -116,10 +205,12 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                           data={annexes?.byCountry ?? []}
                           dataKey="value"
                           nameKey="name"
-                          innerRadius={40}
+                          innerRadius={0}
                           outerRadius={90}
                           stroke="#111"
                           strokeWidth={2}
+                          labelLine={false}
+                          label={renderPieLabel}
                         >
                           {(annexes?.byCountry ?? []).map((entry, index) => (
                             <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
@@ -128,7 +219,7 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <p className="text-xs text-neutral-700" style={{ fontFamily: '"Merriweather", serif' }}>
+                  <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
                     <strong>
                       <em>Fuente: Elaboración propia</em>
                     </strong>
@@ -147,7 +238,7 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, matr
         </header>
         <textarea
           className="w-full border-4 border-black bg-neutral-50 p-4 text-lg leading-relaxed text-black placeholder:text-neutral-500"
-          style={{ fontFamily: '"Merriweather", serif' }}
+          style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'justify' }}
           value={manuscript.references.join('\n')}
           rows={6}
           onChange={(event) => onChange('references', event.target.value.split('\n').map((line) => line.trim()).filter(Boolean))}

@@ -4,7 +4,7 @@ import type { ExtractionPayload } from '../features/phase5_extraction/types.ts'
 import type { SynthesisTheme } from '../features/phase6_synthesis/types.ts'
 import type { SynthesisStats } from '../features/phase6_synthesis/analytics.ts'
 import type { AggregatedProjectData } from './project-aggregator.service.ts'
-import type { Manuscript } from '../features/phase7_report/types.ts'
+import type { Manuscript, ManuscriptLanguage } from '../features/phase7_report/types.ts'
 import type { CaspAnswer, ChecklistType, StudyType } from '../features/phase4_quality/types.ts'
 import { createEmptyManuscript } from '../features/phase7_report/types.ts'
 
@@ -533,6 +533,8 @@ const computeWordCountFromManuscript = (manuscript: Manuscript) => {
   const text =
     manuscript.abstract +
     ' ' +
+    manuscript.abstractEn +
+    ' ' +
     manuscript.introduction +
     ' ' +
     manuscript.methods +
@@ -542,6 +544,10 @@ const computeWordCountFromManuscript = (manuscript: Manuscript) => {
     manuscript.discussion +
     ' ' +
     manuscript.conclusions +
+    ' ' +
+    manuscript.keywords.join(' ') +
+    ' ' +
+    manuscript.keywordsEn.join(' ') +
     ' ' +
     manuscript.references.join(' ')
   return text.trim() ? text.trim().split(/\s+/).length : 0
@@ -597,38 +603,72 @@ const buildApaReferences = (studies: Candidate[]) => {
     .filter(Boolean)
 }
 
-const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectData): Manuscript => {
+const DEFAULT_MANUSCRIPT = (
+  projectId: string,
+  aggregated?: AggregatedProjectData,
+  language: ManuscriptLanguage = 'es',
+): Manuscript => {
   const includedCount = aggregated?.includedStudies?.length ?? 0
   const prismaIdentified = aggregated?.prisma?.identified ?? 0
   const prismaIncluded = aggregated?.prisma?.included ?? includedCount
   const phase1Question = aggregated?.phase1?.mainQuestion ?? '¿Cuál es el efecto de las intervenciones basadas en IA en contextos educativos?'
 
   const normalizedQuestion = phase1Question.replace(/[¿?]/g, '').trim()
-  const title = `${normalizedQuestion || 'Revisión sistemática'}: Una revisión sistemática`
+  const title =
+    language === 'en'
+      ? `${normalizedQuestion || 'Systematic review'}: A systematic review`
+      : `${normalizedQuestion || 'Revisión sistemática'}: Una revisión sistemática`
 
   const references = buildApaReferences(aggregated?.includedStudies ?? [])
 
-  const manuscript = {
-  ...createEmptyManuscript(projectId),
-  title,
-  abstract:
-    `Esta revisión sistemática sintetiza la evidencia disponible sobre intervenciones basadas en IA y su impacto en contextos educativos. Se aplicó la guía PRISMA 2020 para asegurar transparencia y reproducibilidad. En total se identificaron ${prismaIdentified} registros y se incluyeron ${prismaIncluded} estudios.`,
-  introduction:
-    `La incorporación de tecnologías inteligentes en entornos de aprendizaje ha motivado múltiples estudios que comparan su eficacia con métodos tradicionales. Esta síntesis aborda la pregunta central: ${phase1Question}. A pesar de la diversidad de diseños y contextos, persisten lagunas en torno al seguimiento longitudinal y las métricas centradas en el estudiantado.`,
-  methods:
-    'Se llevaron a cabo búsquedas federadas en bases de datos internacionales, aplicando criterios PICO predefinidos y flujos PRISMA. La calidad metodológica se evaluó mediante CASP y las extracciones cuantitativas fueron estandarizadas en matrices estructuradas.',
-  results:
-    `Se incluyeron ${includedCount} estudios con predominio de ensayos controlados y diseños quasi-experimentales. Las intervenciones más efectivas combinaron dashboards analíticos con coaching docente, mostrando mejoras estadísticamente significativas en precisión de retroalimentación.`,
-  discussion:
-    'Los hallazgos respaldan la adopción de sistemas de evaluación automatizada, aunque la heterogeneidad metodológica limita la extrapolación completa. Se requieren estudios multicéntricos y comparaciones directas entre plataformas para comprender el rol de la personalización.',
-  conclusions:
-    'La evidencia converge en que las herramientas basadas en IA optimizan la retroalimentación y reducen tiempos de respuesta, siempre que exista acompañamiento pedagógico. Las futuras investigaciones deben priorizar poblaciones subrepresentadas y métricas de impacto sostenido.',
-  references,
-  prismaChecklistValidated: false,
-  finalSubmissionReady: false,
-  generatedAt: Date.now(),
-  wordCount: 0,
-  }
+  const base = createEmptyManuscript(projectId)
+
+  const manuscript: Manuscript =
+    language === 'en'
+      ? {
+          ...base,
+          language,
+          title,
+          abstract: `This systematic review synthesizes the available evidence on AI-based interventions and their impact in educational settings. PRISMA 2020 guidance was applied to ensure transparency and reproducibility. A total of ${prismaIdentified} records were identified and ${prismaIncluded} studies were included.`,
+          abstractEn: `This systematic review synthesizes the available evidence on AI-based interventions and their impact in educational settings. PRISMA 2020 guidance was applied to ensure transparency and reproducibility. A total of ${prismaIdentified} records were identified and ${prismaIncluded} studies were included.`,
+          keywords: [],
+          keywordsEn: [],
+          introduction: `The integration of intelligent technologies in learning environments has motivated multiple studies comparing their effectiveness with traditional approaches. This review addresses the central question: ${phase1Question}. Despite a diversity of designs and contexts, important gaps remain regarding longitudinal follow-up and learner-centered metrics.`,
+          methods:
+            'Federated searches were conducted in international databases, applying predefined PICO criteria and PRISMA flows. Methodological quality was assessed using CASP and quantitative extractions were standardized into structured matrices.',
+          results: `A total of ${includedCount} studies were included, predominantly randomized and quasi-experimental designs. The most effective interventions combined analytic dashboards with teacher coaching, reporting improvements in feedback accuracy and timeliness.`,
+          discussion:
+            'Findings support the adoption of automated assessment systems, although methodological heterogeneity limits full generalizability. Multi-center studies and direct platform comparisons are needed to clarify the role of personalization.',
+          conclusions:
+            'Evidence converges on AI-based tools improving feedback and reducing response times, particularly when accompanied by pedagogical support. Future studies should prioritize underrepresented populations and sustained impact outcomes.',
+          references,
+          generatedAt: Date.now(),
+          wordCount: 0,
+        }
+      : {
+          ...base,
+          language,
+          title,
+          abstract:
+            `Esta revisión sistemática sintetiza la evidencia disponible sobre intervenciones basadas en IA y su impacto en contextos educativos. Se aplicó la guía PRISMA 2020 para asegurar transparencia y reproducibilidad. En total se identificaron ${prismaIdentified} registros y se incluyeron ${prismaIncluded} estudios.`,
+          abstractEn:
+            `This systematic review synthesizes the available evidence on AI-based interventions and their impact in educational settings. PRISMA 2020 guidance was applied to ensure transparency and reproducibility. A total of ${prismaIdentified} records were identified and ${prismaIncluded} studies were included.`,
+          keywords: [],
+          keywordsEn: [],
+          introduction:
+            `La incorporación de tecnologías inteligentes en entornos de aprendizaje ha motivado múltiples estudios que comparan su eficacia con métodos tradicionales. Esta síntesis aborda la pregunta central: ${phase1Question}. A pesar de la diversidad de diseños y contextos, persisten lagunas en torno al seguimiento longitudinal y las métricas centradas en el estudiantado.`,
+          methods:
+            'Se llevaron a cabo búsquedas federadas en bases de datos internacionales, aplicando criterios PICO predefinidos y flujos PRISMA. La calidad metodológica se evaluó mediante CASP y las extracciones cuantitativas fueron estandarizadas en matrices estructuradas.',
+          results:
+            `Se incluyeron ${includedCount} estudios con predominio de ensayos controlados y diseños quasi-experimentales. Las intervenciones más efectivas combinaron dashboards analíticos con coaching docente, mostrando mejoras estadísticamente significativas en precisión de retroalimentación.`,
+          discussion:
+            'Los hallazgos respaldan la adopción de sistemas de evaluación automatizada, aunque la heterogeneidad metodológica limita la extrapolación completa. Se requieren estudios multicéntricos y comparaciones directas entre plataformas para comprender el rol de la personalización.',
+          conclusions:
+            'La evidencia converge en que las herramientas basadas en IA optimizan la retroalimentación y reducen tiempos de respuesta, siempre que exista acompañamiento pedagógico. Las futuras investigaciones deben priorizar poblaciones subrepresentadas y métricas de impacto sostenido.',
+          references,
+          generatedAt: Date.now(),
+          wordCount: 0,
+        }
 
   return { ...manuscript, wordCount: computeWordCountFromManuscript(manuscript) }
 }
@@ -636,10 +676,12 @@ const DEFAULT_MANUSCRIPT = (projectId: string, aggregated?: AggregatedProjectDat
 export const generateFullManuscript = async (
   projectId: string,
   aggregated: AggregatedProjectData,
+  options?: { language?: ManuscriptLanguage },
 ): Promise<Manuscript> => {
+  const language: ManuscriptLanguage = options?.language === 'en' ? 'en' : 'es'
   if (!hasProxy) {
     await delay(1500)
-    return DEFAULT_MANUSCRIPT(projectId, aggregated)
+    return DEFAULT_MANUSCRIPT(projectId, aggregated, language)
   }
 
   try {
@@ -648,17 +690,31 @@ export const generateFullManuscript = async (
       {
         projectId,
         aggregated,
+        language,
       },
     )
 
     const base = createEmptyManuscript(projectId)
     const references = buildApaReferences(aggregated?.includedStudies ?? [])
-    const derivedTitle = DEFAULT_MANUSCRIPT(projectId, aggregated).title
+    const derivedTitle = DEFAULT_MANUSCRIPT(projectId, aggregated, language).title
     const manuscript = {
       ...base,
       ...response,
       projectId,
+      language,
       title: typeof response.title === 'string' && response.title.trim() ? response.title.trim() : derivedTitle,
+      abstractEn:
+        typeof (response as any).abstractEn === 'string'
+          ? String((response as any).abstractEn)
+          : typeof response.abstract === 'string'
+            ? response.abstract
+            : '',
+      keywords: Array.isArray((response as any).keywords)
+        ? (response as any).keywords.map((kw: unknown) => String(kw ?? '').trim()).filter(Boolean)
+        : [],
+      keywordsEn: Array.isArray((response as any).keywordsEn)
+        ? (response as any).keywordsEn.map((kw: unknown) => String(kw ?? '').trim()).filter(Boolean)
+        : [],
       references,
       generatedAt: response.generatedAt ?? Date.now(),
     }
@@ -667,6 +723,6 @@ export const generateFullManuscript = async (
   } catch (error) {
     console.error('generateFullManuscript error', error)
     await delay(1000)
-    return DEFAULT_MANUSCRIPT(projectId, aggregated)
+    return DEFAULT_MANUSCRIPT(projectId, aggregated, language)
   }
 }

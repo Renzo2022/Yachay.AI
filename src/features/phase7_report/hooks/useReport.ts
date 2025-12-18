@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Manuscript, AnnexesData } from '../types.ts'
+import type { Manuscript, AnnexesData, ManuscriptLanguage } from '../types.ts'
 import { createEmptyManuscript } from '../types.ts'
 import { listenToManuscript, saveManuscript } from '../../../services/manuscript.service.ts'
 import { aggregateProjectData } from '../../../services/project-aggregator.service.ts'
@@ -19,11 +19,14 @@ const PROGRESS_STEPS = [
 const computeWordCount = (manuscript: Manuscript) => {
   const text = [
     manuscript.abstract,
+    manuscript.abstractEn,
     manuscript.introduction,
     manuscript.methods,
     manuscript.results,
     manuscript.discussion,
     manuscript.conclusions,
+    manuscript.keywords?.join(' ') ?? '',
+    manuscript.keywordsEn?.join(' ') ?? '',
     manuscript.references.join(' '),
   ].join(' ')
   return text.trim() ? text.trim().split(/\s+/).length : 0
@@ -34,6 +37,7 @@ export const useReport = (projectId: string) => {
   const [annexes, setAnnexes] = useState<AnnexesData | null>(null)
   const [reportTitle, setReportTitle] = useState<string>('')
   const [keywords, setKeywords] = useState<string[]>([])
+  const [keywordsEn, setKeywordsEn] = useState<string[]>([])
   const [matrixRows, setMatrixRows] = useState<Array<{ study: Candidate; extraction?: ExtractionData }>>([])
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState<{ step: number; label: string } | null>(null)
@@ -127,7 +131,12 @@ export const useReport = (projectId: string) => {
 
         const keywordMatrix = (aggregated.project as any)?.phase2?.lastStrategy?.keywordMatrix
         const derivedKeywords = buildKeywords(keywordMatrix)
-        if (!cancelled) setKeywords(derivedKeywords)
+        const preferredKeywords = (manuscript.keywords ?? []).filter(Boolean)
+        const preferredKeywordsEn = (manuscript.keywordsEn ?? []).filter(Boolean)
+        if (!cancelled) {
+          setKeywords(preferredKeywords.length ? preferredKeywords : derivedKeywords)
+          setKeywordsEn(preferredKeywordsEn)
+        }
 
         const stats = prepareChartsData(aggregated.includedStudies, aggregated.extractionMatrix)
         const nextAnnexes: AnnexesData = {
@@ -163,6 +172,7 @@ export const useReport = (projectId: string) => {
         if (!cancelled) {
           setReportTitle('')
           setKeywords([])
+          setKeywordsEn([])
           setMatrixRows([])
         }
       }
@@ -244,7 +254,7 @@ export const useReport = (projectId: string) => {
         await new Promise((resolve) => setTimeout(resolve, 300))
       }
 
-      const generated = await generateFullManuscript(projectId, aggregated)
+      const generated = await generateFullManuscript(projectId, aggregated, { language: 'es' })
       await saveManuscript(projectId, generated)
       setProgress({ step: PROGRESS_STEPS.length, label: 'Manuscrito completado' })
       setTimeout(() => setProgress(null), 2000)
@@ -258,7 +268,7 @@ export const useReport = (projectId: string) => {
     }
   }, [projectId])
 
-  const regenerateManuscript = useCallback(async () => {
+  const regenerateManuscript = useCallback(async (language: ManuscriptLanguage = 'es') => {
     if (!projectId) return null
     try {
       setGenerating(true)
@@ -272,11 +282,21 @@ export const useReport = (projectId: string) => {
         await new Promise((resolve) => setTimeout(resolve, 250))
       }
 
-      const regenerated = await generateFullManuscript(projectId, aggregated)
-      await saveManuscript(projectId, regenerated)
+      const regenerated = await generateFullManuscript(projectId, aggregated, { language })
+      const base = manuscript ?? createEmptyManuscript(projectId)
+      const merged: Manuscript = {
+        ...regenerated,
+        authorName: base.authorName ?? '',
+        authorOrcid: base.authorOrcid ?? '',
+        references: base.references ?? [],
+        referencesFormatted: base.referencesFormatted ?? false,
+        prismaChecklistValidated: base.prismaChecklistValidated ?? false,
+        finalSubmissionReady: base.finalSubmissionReady ?? false,
+      }
+      await saveManuscript(projectId, { ...merged, wordCount: computeWordCount(merged) })
       setProgress({ step: PROGRESS_STEPS.length, label: 'Manuscrito regenerado' })
       setTimeout(() => setProgress(null), 2000)
-      return regenerated
+      return merged
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo regenerar el manuscrito')
       setProgress(null)
@@ -284,7 +304,7 @@ export const useReport = (projectId: string) => {
     } finally {
       setGenerating(false)
     }
-  }, [projectId])
+  }, [manuscript, projectId])
 
   const progressPercent = useMemo(() => {
     if (!progress) return 0
@@ -296,6 +316,7 @@ export const useReport = (projectId: string) => {
     annexes,
     reportTitle,
     keywords,
+    keywordsEn,
     matrixRows,
     generating,
     progress,

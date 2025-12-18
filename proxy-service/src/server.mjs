@@ -143,13 +143,27 @@ const COHERE_MANUSCRIPT_SCHEMA = {
     properties: {
       title: { type: "string" },
       abstract: { type: "string" },
+      abstractEn: { type: "string" },
+      keywords: { type: "array", items: { type: "string" } },
+      keywordsEn: { type: "array", items: { type: "string" } },
       introduction: { type: "string" },
       methods: { type: "string" },
       results: { type: "string" },
       discussion: { type: "string" },
       conclusions: { type: "string" },
     },
-    required: ["title", "abstract", "introduction", "methods", "results", "discussion", "conclusions"],
+    required: [
+      "title",
+      "abstract",
+      "abstractEn",
+      "keywords",
+      "keywordsEn",
+      "introduction",
+      "methods",
+      "results",
+      "discussion",
+      "conclusions",
+    ],
     additionalProperties: false,
   },
 };
@@ -445,11 +459,13 @@ app.get("/unpaywall/resolve", async (req, res) => {
 });
 
 const handleCohereManuscript = async (req, res) => {
-  const { projectId, aggregated } = req.body ?? {};
+  const { projectId, aggregated, language } = req.body ?? {};
   if (!projectId || !aggregated) {
     res.status(400).json({ error: "Missing project data" });
     return;
   }
+
+  const requestedLanguage = language === "en" ? "en" : "es";
 
   try {
     const cohere = ensureCohere();
@@ -534,12 +550,46 @@ const handleCohereManuscript = async (req, res) => {
       },
     };
 
-    const prompt = `Eres un redactor científico experto en PRISMA 2020.
+    const prompt =
+      requestedLanguage === "en"
+        ? `You are an expert scientific writer following PRISMA 2020.
+
+You must write an academic manuscript in English using ONLY the provided data.
+
+Return ONLY valid JSON with the EXACT schema:
+{title,abstract,abstractEn,keywords,keywordsEn,introduction,methods,results,discussion,conclusions}
+
+Rules:
+- Do not fabricate data, numbers, results, or references.
+- Keep a formal, coherent academic style.
+- title: convert the main question into an academic title (remove question marks), max 18 words, and add the subtitle ": A systematic review".
+- In-text APA citations: when stating a specific finding or comparing results, add an APA-style citation in the text, e.g., (Surname, 2021) or (Surname et al., 2020). Use ONLY authors/years present in includedStudies; if authors are missing, use a short title + year.
+- Do NOT include a references list in the JSON (references are generated locally).
+- abstract: 150–250 words.
+- abstractEn: same content as abstract (English).
+- keywords: 5–8 keywords in English.
+- keywordsEn: same list as keywords (English).
+- Introduction: 250–400 words.
+- Methods: describe PRISMA process, screening, quality assessment and extraction.
+- Results: summarize PRISMA, characteristics and findings. Must include at least 4 clearly identifiable paragraphs/sentences:
+  1) "In Figure 1..." describing PRISMA counts (identified, duplicates, withoutAbstract, screened, included).
+  2) "In Table 1..." describing what the comparative matrix summarizes (designs, populations, variables and results).
+  3) "In Figure 2..." describing the pattern by year using figures.byYear.
+  4) "In Figure 3..." describing the distribution by country using figures.byCountry.
+  Do not create an annexes section.
+- Discussion: interpretation, limitations and implications.
+- Conclusions: 80–150 words.
+
+Project data (JSON):
+${JSON.stringify(compactPayload)}`
+        : `Eres un redactor científico experto en PRISMA 2020.
 
 Debes redactar un manuscrito académico en español neutro usando EXCLUSIVAMENTE los datos entregados.
 
+Adicionalmente, debes incluir un Abstract en inglés y Keywords en inglés.
+
 Devuelve EXCLUSIVAMENTE JSON válido con el esquema EXACTO:
-{title,abstract,introduction,methods,results,discussion,conclusions}
+{title,abstract,abstractEn,keywords,keywordsEn,introduction,methods,results,discussion,conclusions}
 
 Reglas:
 - No inventes datos, números, resultados ni referencias.
@@ -547,7 +597,10 @@ Reglas:
 - title: convierte la pregunta principal en un título académico (sin signos ¿?), máximo 18 palabras, y agrega el subtítulo ": Una revisión sistemática".
 - Citas APA en el texto: cuando afirmes un hallazgo específico o compares resultados, agrega una cita en formato APA dentro del texto, por ejemplo (Apellido, 2021) o (Apellido et al., 2020). Usa SOLO autores/años presentes en includedStudies; si faltan autores usa un título abreviado + año.
 - NO incluyas una lista de referencias dentro del JSON (las referencias se generan localmente).
-- Abstract: 150–250 palabras.
+- abstract: Resumen en español (150–250 palabras).
+- abstractEn: Abstract en inglés (150–250 palabras), equivalente al Resumen.
+- keywords: 5–8 palabras clave en español.
+- keywordsEn: 5–8 keywords en inglés basadas en el abstractEn.
 - Introduction: 250–400 palabras.
 - Methods: describe el proceso PRISMA, cribado, evaluación de calidad y extracción.
 - Results: resume PRISMA, características y hallazgos. Debe contener al menos 4 párrafos/campos claramente identificables en el texto:

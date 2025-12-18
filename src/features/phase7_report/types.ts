@@ -15,11 +15,19 @@ export type AnnexesData = {
   byCountry: { name: string; value?: number }[]
 }
 
+export type ManuscriptLanguage = 'es' | 'en'
+
 export interface Manuscript {
   id: string
   projectId: string
+  language: ManuscriptLanguage
   title: string
   abstract: string
+  abstractEn: string
+  keywords: string[]
+  keywordsEn: string[]
+  authorName: string
+  authorOrcid: string
   introduction: string
   methods: string
   results: string
@@ -36,8 +44,14 @@ export interface Manuscript {
 export const createEmptyManuscript = (projectId: string): Manuscript => ({
   id: crypto.randomUUID(),
   projectId,
+  language: 'es',
   title: '',
   abstract: '',
+  abstractEn: '',
+  keywords: [],
+  keywordsEn: [],
+  authorName: '',
+  authorOrcid: '',
   introduction: '',
   methods: '',
   results: '',
