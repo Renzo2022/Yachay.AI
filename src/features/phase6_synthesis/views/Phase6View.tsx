@@ -15,6 +15,7 @@ export const Phase6View = () => {
   const project = useProject()
   const {
     studies,
+    matrix,
     stats,
     themes,
     narrative,
@@ -33,10 +34,18 @@ export const Phase6View = () => {
   const [activeTab, setActiveTab] = useState<'visualizations' | 'themes' | 'narrative'>('visualizations')
   const [selectedYear, setSelectedYear] = useState<string | null>(null)
 
-  const filteredStudies = useMemo(() => {
-    if (!selectedYear) return studies
-    return studies.filter((study) => String(study.year ?? 'NA') === selectedYear)
-  }, [selectedYear, studies])
+  const excludedStudyIds = useMemo(() => {
+    return new Set(matrix.filter((entry) => entry.status === 'not_extractable').map((entry) => entry.studyId))
+  }, [matrix])
+
+  const usableStudies = useMemo(() => {
+    return studies.filter((study) => !excludedStudyIds.has(study.id))
+  }, [excludedStudyIds, studies])
+
+  const filteredUsableStudies = useMemo(() => {
+    if (!selectedYear) return usableStudies
+    return usableStudies.filter((study) => String(study.year ?? 'NA') === selectedYear)
+  }, [selectedYear, usableStudies])
 
   return (
     <div className="space-y-6">
@@ -50,7 +59,10 @@ export const Phase6View = () => {
         </div>
         <div className="border-3 border-black px-4 py-3 bg-neutral-100">
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-500">Estudios incluidos</p>
-          <p className="text-2xl font-black text-neutral-900">{studies.length}</p>
+          <p className="text-2xl font-black text-neutral-900">{usableStudies.length}</p>
+          <p className="mt-1 text-xs font-mono text-neutral-600">
+            Total: {studies.length} · No extraíbles: {excludedStudyIds.size}
+          </p>
         </div>
       </header>
 
@@ -74,8 +86,8 @@ export const Phase6View = () => {
       {activeTab === 'visualizations' ? (
         <VisualizationsPanel
           stats={stats}
-          studies={studies}
-          filteredStudies={filteredStudies}
+          studies={usableStudies}
+          filteredStudies={filteredUsableStudies}
           selectedYear={selectedYear}
           onYearFilter={setSelectedYear}
         />
@@ -84,7 +96,7 @@ export const Phase6View = () => {
       {activeTab === 'themes' ? (
         <ThematicAnalysis
           themes={themes}
-          studies={studies}
+          studies={usableStudies}
           onAdd={addTheme}
           onUpdate={updateTheme}
           onDelete={deleteTheme}

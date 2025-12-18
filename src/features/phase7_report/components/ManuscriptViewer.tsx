@@ -14,7 +14,23 @@ interface ManuscriptViewerProps {
   matrixRows?: Array<{ study: Candidate; extraction?: ExtractionData }>
 }
 
-const PIE_COLORS = ['#EF4444', '#F97316', '#FFB703', '#FB5607', '#FF006E', '#8338EC', '#3A86FF']
+const OTHER_COUNTRY_LABEL = 'OTROS'
+const OTHER_FILL = '#3A86FF'
+
+const hashStringToHue = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) % 360
+  }
+  return hash
+}
+
+const colorForCountry = (country: string) => {
+  if (!country) return OTHER_FILL
+  if (country === OTHER_COUNTRY_LABEL) return OTHER_FILL
+  const hue = hashStringToHue(country)
+  return `hsl(${hue}, 70%, 60%)`
+}
 
 const sectionsEs: { field: keyof Manuscript; label: string }[] = [
   { field: 'abstract', label: 'Resumen' },
@@ -80,6 +96,28 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
   const figure3Label = isEnglish ? 'Figure 3:' : 'Figura 3:'
   const figure3Title = isEnglish ? 'Distribution by country' : 'Distribución por país'
   const sourceText = isEnglish ? "Source: Authors' elaboration" : 'Fuente: Elaboración propia'
+
+  const reportByCountry = (() => {
+    const items = (annexes?.byCountry ?? []).map((row) => ({
+      name: String(row.name ?? ''),
+      value: typeof row.value === 'number' ? row.value : 0,
+    }))
+
+    const total = items.reduce((sum, row) => sum + row.value, 0)
+    if (!total) return { data: items, hasOtherBucket: false }
+
+    const withPct = items.map((row) => ({ ...row, percent: row.value / total }))
+    const minor = withPct.filter((row) => row.value <= 1 || row.percent < 0.01)
+    const major = withPct.filter((row) => !(row.value <= 1 || row.percent < 0.01))
+
+    if (!minor.length) return { data: items, hasOtherBucket: false }
+
+    const othersValue = minor.reduce((sum, row) => sum + row.value, 0)
+    return {
+      data: [...major.map(({ percent, ...rest }) => rest), { name: OTHER_COUNTRY_LABEL, value: othersValue }].sort((a, b) => b.value - a.value),
+      hasOtherBucket: true,
+    }
+  })()
 
   return (
     <section className="border-4 border-black bg-white shadow-[16px_16px_0_0_#111] p-6 space-y-6">
@@ -202,7 +240,7 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <PieChart>
                         <Pie
-                          data={annexes?.byCountry ?? []}
+                          data={reportByCountry.data}
                           dataKey="value"
                           nameKey="name"
                           innerRadius={0}
@@ -212,13 +250,20 @@ export const ManuscriptViewer = ({ manuscript, onChange, annexes, keywords, keyw
                           labelLine={false}
                           label={renderPieLabel}
                         >
-                          {(annexes?.byCountry ?? []).map((entry, index) => (
-                            <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          {reportByCountry.data.map((entry) => (
+                            <Cell key={`cell-${entry.name}`} fill={colorForCountry(String(entry.name ?? ''))} />
                           ))}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
+                  {reportByCountry.hasOtherBucket ? (
+                    <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
+                      <strong>
+                        <em>{isEnglish ? 'Note: OTROS groups countries with 1 study or < 1% share.' : 'Nota: OTROS agrupa países con 1 estudio o participación < 1%.'}</em>
+                      </strong>
+                    </p>
+                  ) : null}
                   <p className="text-xs text-neutral-700" style={{ fontFamily: 'Arial', fontSize: 11, textAlign: 'left' }}>
                     <strong>
                       <em>Fuente: Elaboración propia</em>

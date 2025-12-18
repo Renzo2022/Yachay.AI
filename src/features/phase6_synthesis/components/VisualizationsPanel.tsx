@@ -2,7 +2,23 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Cell, CartesianGrid }
 import type { SynthesisStats } from '../analytics.ts'
 import type { Candidate } from '../../projects/types.ts'
 
-const PIE_COLORS = ['#F97316', '#FFB703', '#FB5607', '#FF006E', '#8338EC', '#3A86FF']
+const OTHER_COUNTRY_LABEL = 'OTROS'
+const OTHER_FILL = '#3A86FF'
+
+const hashStringToHue = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) % 360
+  }
+  return hash
+}
+
+const colorForCountry = (country: string) => {
+  if (!country) return OTHER_FILL
+  if (country === OTHER_COUNTRY_LABEL) return OTHER_FILL
+  const hue = hashStringToHue(country)
+  return `hsl(${hue}, 70%, 60%)`
+}
 
 interface VisualizationsPanelProps {
   stats: SynthesisStats
@@ -20,11 +36,27 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
   }
 
   const totalCountry = stats.byCountry.reduce((sum, item) => sum + (typeof item.value === 'number' ? item.value : 0), 0)
-  const byCountry = stats.byCountry.map((item) => {
+  const rawByCountry = stats.byCountry.map((item) => {
     const value = typeof item.value === 'number' ? item.value : 0
     const percent = totalCountry > 0 ? value / totalCountry : 0
     return { ...item, value, percent }
   })
+
+  const { byCountry, hasOtherBucket } = (() => {
+    const minor = rawByCountry.filter((item) => item.value <= 1 || item.percent < 0.01)
+    const major = rawByCountry.filter((item) => !(item.value <= 1 || item.percent < 0.01))
+
+    if (!minor.length) return { byCountry: rawByCountry, hasOtherBucket: false }
+
+    const othersValue = minor.reduce((sum, item) => sum + item.value, 0)
+    const othersPercent = totalCountry > 0 ? othersValue / totalCountry : 0
+    const others = { name: OTHER_COUNTRY_LABEL, value: othersValue, percent: othersPercent }
+
+    return {
+      byCountry: [...major, others].sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
+      hasOtherBucket: true,
+    }
+  })()
 
   const countryChartHeight = Math.max(240, byCountry.length * 26 + 20)
 
@@ -75,6 +107,11 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
         <header className="mb-4">
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-[#F97316]">Distribución geográfica</p>
           <h3 className="text-2xl font-black text-neutral-900">Países</h3>
+          {hasOtherBucket ? (
+            <p className="mt-1 text-xs font-mono text-neutral-600">
+              {OTHER_COUNTRY_LABEL} agrupa países con 1 estudio o participación &lt; 1%.
+            </p>
+          ) : null}
         </header>
         <div className="max-h-[520px] overflow-auto min-w-0">
           <div style={{ height: countryChartHeight }} className="min-w-0">
@@ -84,8 +121,8 @@ export const VisualizationsPanel = ({ stats, studies, filteredStudies, onYearFil
                 <XAxis type="number" stroke="#111" allowDecimals={false} />
                 <YAxis type="category" dataKey="name" hide />
                 <Bar dataKey="value" stroke="#111" strokeWidth={2} barSize={16} label={renderCountryBarLabel}>
-                  {byCountry.map((entry, index) => (
-                    <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  {byCountry.map((entry) => (
+                    <Cell key={`cell-${entry.name}`} fill={colorForCountry(String(entry.name ?? ''))} />
                   ))}
                 </Bar>
               </BarChart>
