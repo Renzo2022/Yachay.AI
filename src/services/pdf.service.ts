@@ -24,6 +24,25 @@ const fetchPdfAsArrayBuffer = async (url: string) => {
   })
   if (!response.ok) {
     const contentType = response.headers.get('content-type') ?? ''
+    if (contentType.includes('application/json')) {
+      try {
+        const payload = (await response.json()) as any
+        if (payload?.error === 'Not a PDF') {
+          const snippet = String(payload?.snippet ?? '')
+          const needsInteractiveDownload = /preparing to download|enable javascript|cloudflare|captcha/i.test(snippet)
+          if (needsInteractiveDownload) {
+            throw new Error(
+              'El enlace no entrega un PDF directo: devuelve una página intermedia ("Preparing to download..."). Descarga el PDF manualmente y súbelo arrastrando el archivo.',
+            )
+          }
+          throw new Error(
+            'El enlace no entrega un PDF directo. Busca un link directo al archivo o descarga el PDF y súbelo arrastrando el archivo.',
+          )
+        }
+      } catch {
+      }
+    }
+
     let details = ''
     try {
       details = (await response.text()).slice(0, 300)

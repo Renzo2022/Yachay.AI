@@ -79,8 +79,10 @@ const computePhase5Completion = (extractions: ExtractionData[], included: Candid
   const target = included.length || extractions.length
   if (target === 0) return 0
 
-  const extractedCount = extractions.filter((entry) => entry.status === 'extracted' || entry.status === 'verified').length
-  const verifiedCount = extractions.filter((entry) => entry.status === 'verified').length
+  const extractedCount = extractions.filter(
+    (entry) => entry.status === 'extracted' || entry.status === 'verified' || entry.status === 'not_extractable',
+  ).length
+  const verifiedCount = extractions.filter((entry) => entry.status === 'verified' || entry.status === 'not_extractable').length
 
   const steps = [extractedCount > 0, extractedCount >= target, verifiedCount >= target]
   return Math.min(PHASE_TASKS.phase5, steps.filter(Boolean).length)

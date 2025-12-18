@@ -84,8 +84,13 @@ export const useSynthesis = (projectId: string) => {
     setGenerating(true)
     try {
       const input = {
-        studies: studies.map((study) => {
-          const entry = matrix.find((item) => item.studyId === study.id)
+        studies: studies
+          .map((study) => {
+            const entry = matrix.find((item) => item.studyId === study.id)
+            return { study, entry }
+          })
+          .filter(({ entry }) => entry?.status !== 'not_extractable')
+          .map(({ study, entry }) => {
           return {
             id: study.id,
             title: study.title,

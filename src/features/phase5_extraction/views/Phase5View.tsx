@@ -8,6 +8,7 @@ import { ExtractionMatrixTable } from '../components/ExtractionMatrixTable.tsx'
 import { DataEditorModal } from '../components/DataEditorModal.tsx'
 import { useExtraction, RAG_STEPS } from '../hooks/useExtraction.ts'
 import type { ExtractionData } from '../types.ts'
+import { createEmptyExtraction } from '../types.ts'
 
 const tabs = [
   { id: 'list', label: 'Lista de extracción' },
@@ -47,7 +48,16 @@ export const Phase5View = () => {
 
   const handleSaveExtraction = async (data: ExtractionData) => {
     await saveExtraction(data)
-    fireConfetti()
+    if (data.status === 'verified') fireConfetti()
+  }
+
+  const handleMarkNotExtractable = async (study: Candidate) => {
+    const existing = getExtractionForStudy(study.id)
+    const next: ExtractionData = {
+      ...(existing ?? createEmptyExtraction(study.id)),
+      status: 'not_extractable',
+    }
+    await saveExtraction(next)
   }
 
   const handleExtractAll = async () => {
@@ -80,7 +90,8 @@ export const Phase5View = () => {
 
   const processingStudyId = ragState?.studyId
 
-  const pendingCount = Math.max(0, studies.length - stats.verified)
+  const resolvedCount = stats.verified + stats.not_extractable
+  const pendingCount = Math.max(0, studies.length - resolvedCount)
 
   return (
     <div className="space-y-6">
@@ -96,7 +107,7 @@ export const Phase5View = () => {
           <div className="border-3 border-black px-4 py-3 bg-neutral-100">
             <p className="text-xs font-mono uppercase tracking-[0.3em] text-neutral-500">Estado global</p>
             <p className="text-xl font-black text-neutral-900">
-              {stats.verified} verificados · {pendingCount} pendientes
+              {stats.verified} verificados · {stats.not_extractable} no extraíbles · {pendingCount} pendientes
             </p>
             {batchStatus ? <p className="text-xs font-mono text-neutral-600 mt-1">{batchStatus}</p> : null}
           </div>
@@ -136,6 +147,7 @@ export const Phase5View = () => {
               study={study}
               extraction={getExtractionForStudy(study.id)}
               onAutoExtract={(file) => handleAutoExtract(study, file)}
+              onMarkNotExtractable={() => handleMarkNotExtractable(study)}
               onEdit={() => setSelectedStudy(study)}
               processing={processingStudyId === study.id && Boolean(ragState?.running)}
               stepLabel={processingStudyId === study.id ? ragState?.label : undefined}
@@ -148,7 +160,7 @@ export const Phase5View = () => {
           ) : null}
         </div>
       ) : (
-        <ExtractionMatrixTable rows={matrixRows} />
+        <ExtractionMatrixTable rows={matrixRows.filter((row) => row.extraction?.status !== 'not_extractable')} />
       )}
 
       <DataEditorModal

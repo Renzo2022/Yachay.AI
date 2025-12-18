@@ -21,7 +21,7 @@ export interface ExtractionData {
   }
   conclusions: string
   limitations: string[]
-  status: 'empty' | 'extracted' | 'verified'
+  status: 'empty' | 'extracted' | 'verified' | 'not_extractable'
   context?: {
     year?: number
     country?: string

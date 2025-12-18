@@ -36,12 +36,14 @@ export const prepareChartsData = (studies: Candidate[], matrix: ExtractionData[]
   const countryMap = new Map<string, number>()
   const forest: ForestPlotDatum[] = []
 
-  studies.forEach((study) => {
+  const excludedStudyIds = new Set(matrix.filter((entry) => entry.status === 'not_extractable').map((entry) => entry.studyId))
+
+  studies.filter((study) => !excludedStudyIds.has(study.id)).forEach((study) => {
     const yearKey = normalizeYear(study.year)
     yearMap.set(yearKey, (yearMap.get(yearKey) ?? 0) + 1)
   })
 
-  matrix.forEach((entry) => {
+  matrix.filter((entry) => entry.status !== 'not_extractable').forEach((entry) => {
     const countryKey = normalizeCountry(entry.context?.country)
     countryMap.set(countryKey, (countryMap.get(countryKey) ?? 0) + 1)
 

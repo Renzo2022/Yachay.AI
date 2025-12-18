@@ -56,6 +56,29 @@ export const DataEditorModal = ({ open, study, extraction, preview, onClose, onS
     }
   }
 
+  const handleMarkNotExtractable = async () => {
+    if (!draft) return
+    setSaving(true)
+    try {
+      const payload: ExtractionData = {
+        ...draft,
+        variables: variablesInput
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        limitations: limitationInput
+          .split('\n')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        status: 'not_extractable',
+      }
+      await onSave(payload)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
       <div className="bg-white border-4 border-black shadow-[12px_12px_0_0_#111] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -404,6 +427,11 @@ export const DataEditorModal = ({ open, study, extraction, preview, onClose, onS
         </div>
 
         <div className="border-t-4 border-black bg-neutral-900 p-4 flex justify-end gap-3">
+          {draft.status !== 'verified' && draft.status !== 'not_extractable' ? (
+            <BrutalButton variant="secondary" onClick={handleMarkNotExtractable} className="bg-white text-black" disabled={saving}>
+              Marcar como no extraíble
+            </BrutalButton>
+          ) : null}
           <BrutalButton variant="secondary" onClick={onClose} className="bg-white text-black">
             Cancelar
           </BrutalButton>

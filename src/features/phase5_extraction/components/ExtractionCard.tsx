@@ -6,6 +6,7 @@ interface ExtractionCardProps {
   study: Candidate
   extraction?: ExtractionData
   onAutoExtract: (file?: File | string | null) => Promise<void>
+  onMarkNotExtractable: () => Promise<void>
   onEdit: () => void
   processing?: boolean
   stepLabel?: string
@@ -15,15 +16,17 @@ const statusStyles: Record<string, string> = {
   pending: 'bg-white text-black border-dashed',
   extracted: 'bg-yellow-300 text-black',
   verified: 'bg-green-400 text-black',
+  not_extractable: 'bg-neutral-200 text-neutral-900',
 }
 
-export const ExtractionCard = ({ study, extraction, onAutoExtract, onEdit, processing, stepLabel }: ExtractionCardProps) => {
+export const ExtractionCard = ({ study, extraction, onAutoExtract, onMarkNotExtractable, onEdit, processing, stepLabel }: ExtractionCardProps) => {
   const [dragOver, setDragOver] = useState(false)
   const [loading, setLoading] = useState(false)
   const [pdfUrl, setPdfUrl] = useState(study.pdfUrl ?? '')
   const [statusLabel, statusClass] = useMemo(() => {
     const level = extraction?.status ?? 'empty'
     if (level === 'verified') return ['Verificado', statusStyles.verified]
+    if (level === 'not_extractable') return ['No extraíble', statusStyles.not_extractable]
     if (level === 'extracted') return ['Pendiente', statusStyles.extracted]
     return ['Pendiente', statusStyles.pending]
   }, [extraction])
@@ -77,24 +80,50 @@ export const ExtractionCard = ({ study, extraction, onAutoExtract, onEdit, proce
           <span className="text-xs font-mono text-neutral-600 uppercase tracking-wide">Borrador IA</span>
         ) : null}
         {extraction ? (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="ml-auto inline-flex items-center gap-2 border-3 border-black bg-white text-black px-4 py-2 font-mono uppercase shadow-[4px_4px_0_0_#111] hover:-translate-y-1 hover:-translate-x-1"
-          >
-            ✏️ Ver/Editar Datos
-          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {extraction.status !== 'verified' && extraction.status !== 'not_extractable' ? (
+              <button
+                type="button"
+                disabled={loading || processing}
+                onClick={onMarkNotExtractable}
+                className={`inline-flex items-center gap-2 border-3 border-black bg-white text-black px-4 py-2 font-mono uppercase shadow-[4px_4px_0_0_#111] ${
+                  loading || processing ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-1 hover:-translate-x-1'
+                }`}
+              >
+                Marcar como no extraíble
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-2 border-3 border-black bg-white text-black px-4 py-2 font-mono uppercase shadow-[4px_4px_0_0_#111] hover:-translate-y-1 hover:-translate-x-1"
+            >
+              ✏️ Ver/Editar Datos
+            </button>
+          </div>
         ) : (
-          <button
-            type="button"
-            disabled={loading || processing}
-            onClick={() => handleAutoExtract()}
-            className={`ml-auto inline-flex items-center gap-2 border-3 border-black bg-accent-primary text-white px-4 py-2 font-mono uppercase shadow-[4px_4px_0_0_#111] ${
-              loading || processing ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-1 hover:-translate-x-1'
-            }`}
-          >
-            ⚡ {loading || processing ? stepLabel ?? 'Extrayendo…' : 'Auto-Extraer con IA'}
-          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={loading || processing}
+              onClick={() => handleAutoExtract()}
+              className={`inline-flex items-center gap-2 border-3 border-black bg-accent-primary text-white px-4 py-2 font-mono uppercase shadow-[4px_4px_0_0_#111] ${
+                loading || processing ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-1 hover:-translate-x-1'
+              }`}
+            >
+              ⚡ {loading || processing ? stepLabel ?? 'Extrayendo…' : 'Auto-Extraer con IA'}
+            </button>
+            <button
+              type="button"
+              disabled={loading || processing}
+              onClick={onMarkNotExtractable}
+              className={`inline-flex items-center gap-2 border-3 border-black bg-white text-black px-4 py-2 font-mono uppercase shadow-[4px_4px_0_0_#111] ${
+                loading || processing ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-1 hover:-translate-x-1'
+              }`}
+            >
+              Marcar como no extraíble
+            </button>
+          </div>
         )}
       </div>
 

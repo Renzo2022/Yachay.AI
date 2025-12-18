@@ -88,11 +88,12 @@ export const useExtraction = (projectId: string) => {
     return extractionList.reduce(
       (acc, entry) => {
         if (entry.status === 'verified') acc.verified += 1
+        else if (entry.status === 'not_extractable') acc.not_extractable += 1
         else if (entry.status === 'extracted') acc.extracted += 1
         else acc.empty += 1
         return acc
       },
-      { empty: 0, extracted: 0, verified: 0 },
+      { empty: 0, extracted: 0, verified: 0, not_extractable: 0 },
     )
   }, [extractionList])
 

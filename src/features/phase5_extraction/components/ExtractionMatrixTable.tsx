@@ -15,6 +15,7 @@ const statusColors: Record<ExtractionData['status'] | 'empty', string> = {
   empty: 'bg-white text-black',
   extracted: 'bg-yellow-300 text-black',
   verified: 'bg-green-300 text-black',
+  not_extractable: 'bg-neutral-200 text-neutral-900',
 }
 
 export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionMatrixTableProps) => {
@@ -77,7 +78,7 @@ export const ExtractionMatrixTable = ({ rows, variant = 'default' }: ExtractionM
             const conclusions = extraction?.conclusions?.trim() ? extraction.conclusions.trim() : '—'
             const evidenceLevel = study.qualityLevel ?? '—'
 
-            const statusLabel = statusKey === 'verified' ? 'Verificado' : 'Pendiente'
+            const statusLabel = statusKey === 'verified' ? 'Verificado' : statusKey === 'not_extractable' ? 'No extraíble' : 'Pendiente'
 
             if (variant === 'compact') {
               return (
