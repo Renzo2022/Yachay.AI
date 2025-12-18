@@ -38,8 +38,11 @@ export const Phase5View = () => {
   )
 
   const handleAutoExtract = async (study: Candidate, file?: File | string | null) => {
-    const entry = await autoExtract(study, file)
-    if (entry) fireConfetti()
+    try {
+      const entry = await autoExtract(study, file)
+      if (entry) fireConfetti()
+    } catch {
+    }
   }
 
   const handleSaveExtraction = async (data: ExtractionData) => {

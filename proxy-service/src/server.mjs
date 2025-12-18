@@ -849,7 +849,10 @@ app.get("/pdf/proxy", async (req, res) => {
   try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "yachay-ai-proxy",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "application/pdf,*/*",
+        "Accept-Encoding": "identity",
       },
     });
 
@@ -868,9 +871,23 @@ app.get("/pdf/proxy", async (req, res) => {
       }
     }
 
-    const contentType = response.headers.get("content-type") ?? "application/pdf";
     const buffer = Buffer.from(await response.arrayBuffer());
-    res.setHeader("Content-Type", contentType);
+
+    const scanLimit = Math.min(buffer.length, 1024);
+    const signature = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
+    const looksLikePdf = buffer.subarray(0, scanLimit).includes(signature);
+    if (!looksLikePdf) {
+      const contentType = response.headers.get("content-type") ?? "";
+      const snippet = buffer.toString("utf8", 0, Math.min(buffer.length, 300)).replace(/\s+/g, " ").trim();
+      res.status(422).json({
+        error: "Not a PDF",
+        contentType,
+        snippet,
+      });
+      return;
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.send(buffer);
   } catch (error) {

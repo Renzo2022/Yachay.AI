@@ -17,9 +17,53 @@ const readFileAsArrayBuffer = (file: File) =>
   })
 
 const fetchPdfAsArrayBuffer = async (url: string) => {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error('No se pudo descargar el PDF')
-  return await response.arrayBuffer()
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/pdf,*/*',
+    },
+  })
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? ''
+    let details = ''
+    try {
+      details = (await response.text()).slice(0, 300)
+    } catch {
+    }
+    const suffix = `${contentType ? ` Content-Type: ${contentType}.` : ''}${details ? ` Detalle: ${details}` : ''}`
+    throw new Error(`No se pudo descargar el PDF (HTTP ${response.status}).${suffix}`)
+  }
+
+  const buffer = await response.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  const signature = [0x25, 0x50, 0x44, 0x46, 0x2d]
+  let signatureFound = false
+  const scanLimit = Math.min(bytes.length, 1024)
+  for (let i = 0; i <= scanLimit - signature.length; i += 1) {
+    let match = true
+    for (let j = 0; j < signature.length; j += 1) {
+      if (bytes[i + j] !== signature[j]) {
+        match = false
+        break
+      }
+    }
+    if (match) {
+      signatureFound = true
+      break
+    }
+  }
+
+  if (!signatureFound) {
+    const contentType = response.headers.get('content-type') ?? ''
+    let snippet = ''
+    try {
+      snippet = new TextDecoder().decode(buffer.slice(0, 300)).replace(/\s+/g, ' ').trim()
+    } catch {
+    }
+    const suffix = `${contentType ? ` Content-Type: ${contentType}.` : ''}${snippet ? ` Inicio: ${snippet}` : ''}`
+    throw new Error(`El enlace no devolvió un PDF válido.${suffix}`)
+  }
+
+  return buffer
 }
 
 export const extractTextFromPdf = async (source: PdfSource): Promise<string> => {
@@ -30,8 +74,18 @@ export const extractTextFromPdf = async (source: PdfSource): Promise<string> => 
     arrayBuffer = await readFileAsArrayBuffer(source)
   }
 
-  const loadingTask = getDocument({ data: arrayBuffer })
-  const pdf = await loadingTask.promise
+  let pdf: any
+  try {
+    const loadingTask = getDocument({ data: arrayBuffer })
+    pdf = await loadingTask.promise
+  } catch (error) {
+    const name = typeof error === 'object' && error ? (error as { name?: string }).name : undefined
+    const message = typeof error === 'object' && error ? (error as { message?: string }).message : undefined
+    if (name === 'InvalidPDFException' || message?.toLowerCase().includes('invalid pdf')) {
+      throw new Error('El PDF no se pudo leer. Asegúrate de que el enlace sea un PDF directo y accesible (sin página intermedia).')
+    }
+    throw error instanceof Error ? error : new Error('No se pudo leer el PDF')
+  }
   let text = ''
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
