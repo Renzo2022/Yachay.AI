@@ -435,7 +435,6 @@ export const ExportToolbar = ({
       for (const para of paragraphs) {
         const words = para.split(/\s+/).filter(Boolean)
         let lineWords: string[] = []
-        let lineWidth = 0
 
         const flushLine = (justify: boolean) => {
           if (!lineWords.length) return
@@ -444,7 +443,6 @@ export const ExportToolbar = ({
             pdf.text(lineWords.join(' '), marginX, cursorY)
             cursorY += lineHeight
             lineWords = []
-            lineWidth = 0
             return
           }
 
@@ -465,7 +463,6 @@ export const ExportToolbar = ({
           }
           cursorY += lineHeight
           lineWords = []
-          lineWidth = 0
         }
 
         for (const word of words) {
@@ -473,11 +470,9 @@ export const ExportToolbar = ({
           const candidateWidth = pdf.getTextWidth(candidate)
           if (candidateWidth <= maxWidth) {
             lineWords.push(word)
-            lineWidth = candidateWidth
           } else {
             flushLine(true)
             lineWords.push(word)
-            lineWidth = pdf.getTextWidth(word)
           }
         }
         flushLine(false)

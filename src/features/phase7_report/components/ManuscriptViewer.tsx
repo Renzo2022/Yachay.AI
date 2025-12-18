@@ -44,7 +44,7 @@ const renderPieLabel = (props: {
   name?: string
 }) => {
   const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props
-  if (!cx || !cy || !Number.isFinite(midAngle) || innerRadius == null || outerRadius == null) return null
+  if (!cx || !cy || typeof midAngle !== 'number' || innerRadius == null || outerRadius == null) return null
   if (!name) return null
 
   const pct = typeof percent === 'number' ? percent : 0
