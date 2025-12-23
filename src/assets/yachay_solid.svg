@@ -1,0 +1,22 @@
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" id="svg-element">
+                    
+                    <!-- Fondo: Hexágono Oscuro (Base de datos) -->
+                    <path d="M256 48 L464 168 V344 L256 464 L48 344 V168 Z" fill="#0a0a0a" stroke="#333333" stroke-width="10"/>
+
+                    <!-- Estructura interna: Colores Enteros -->
+                    <!-- Brazo Izquierdo (Verde) -->
+                    <line x1="166" y1="180" x2="256" y2="280" stroke="#00ff00" stroke-width="28" stroke-linecap="round"/>
+                    
+                    <!-- Brazo Derecho (Rosa) -->
+                    <line x1="346" y1="180" x2="256" y2="280" stroke="#ff005c" stroke-width="28" stroke-linecap="round"/>
+                    
+                    <!-- Tronco Central (Blanco - La síntesis) -->
+                    <line x1="256" y1="280" x2="256" y2="380" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+
+                    <!-- Nodos (Círculos) -->
+                    <circle cx="166" cy="180" r="32" fill="#00ff00"/> <!-- Nodo Verde -->
+                    <circle cx="346" cy="180" r="32" fill="#ff005c"/> <!-- Nodo Rosa -->
+                    <circle cx="256" cy="280" r="32" fill="#ffffff"/> <!-- Nodo Central Blanco -->
+                    <circle cx="256" cy="380" r="32" fill="#ffffff"/> <!-- Nodo Base Blanco -->
+
+                </svg>
